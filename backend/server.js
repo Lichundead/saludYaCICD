@@ -20,7 +20,7 @@ const app = express();
  */
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://salud-ya-cicd.vercel.app"],
+    origin: ["http://localhost:3000", "https://salud-ya-cicd.vercel.app", "https://saludyacicd-54ta.onrender.com"],
     credentials: true,
   })
 );

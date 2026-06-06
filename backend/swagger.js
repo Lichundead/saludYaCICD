@@ -34,7 +34,7 @@ const options = {
         description: "Servidor local de desarrollo",
       },
       {
-        url: "https://saludyacicd.onrender.com",
+        url: "https://saludyacicd-54ta.onrender.com",
         description: "Servidor de producción (Render)",
       },
     ],
