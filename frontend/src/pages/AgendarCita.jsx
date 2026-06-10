@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { crearCita, obtenerSesion } from "../services/api";
 
 function AgendarCita() {
   const navigate = useNavigate();
@@ -9,10 +10,9 @@ function AgendarCita() {
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
   const [confirmado, setConfirmado] = useState(false);
-  const API = process.env.REACT_APP_API_URL;
 
   const handleSubmit = async () => {
-  const usuario = JSON.parse(localStorage.getItem("usuario"));
+  const usuario = obtenerSesion();
 
   if (!usuario) {
     alert("Error: usuario no identificado");
@@ -44,15 +44,7 @@ function AgendarCita() {
     };
 
     try {
-      const res = await fetch(`${API}/citas`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(nuevaCita)
-      });
-
-      const data = await res.json();
+      const data = await crearCita(nuevaCita);
 
       if (data.success) {
         setConfirmado(true);

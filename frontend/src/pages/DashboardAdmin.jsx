@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-
+import { cerrarSesion } from "../services/api";
 
 function DashboardAdmin() {
   const navigate = useNavigate();
@@ -65,7 +65,10 @@ function DashboardAdmin() {
 
           <button
             style={styles.logoutButton}
-            onClick={() => navigate("/")}
+            onClick={() => {
+              cerrarSesion();
+              navigate("/");
+            }}
           >
             Cerrar sesión
           </button>

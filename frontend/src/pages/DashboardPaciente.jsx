@@ -1,8 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { cerrarSesion, obtenerCitas, obtenerSesion } from "../services/api";
 
 function DashboardPaciente() {
-  const API = process.env.REACT_APP_API_URL;
   const navigate = useNavigate();
 
   const [citas, setCitas] = useState([]);
@@ -23,19 +23,18 @@ function DashboardPaciente() {
 
   
 useEffect(() => {
-  const usuario = JSON.parse(localStorage.getItem("usuario"));
+  const usuario = obtenerSesion();
 
   if (!usuario) return;
 
-  fetch(`${API}/citas/${usuario.email}`)
-    .then((res) => res.json())
+  obtenerCitas(usuario.email)
     .then((data) => {
       if (data.success) {
         setCitas(data.citas);
       }
     })
     .catch((err) => console.error(err));
-}, [API]);
+}, []);
   
   const diasConCitas = citas.map(c => {
     const fecha = new Date(c.fecha);
@@ -72,7 +71,13 @@ useEffect(() => {
             <p style={styles.date}>{fechaFormateada}</p>
           </div>
 
-          <span style={styles.logout} onClick={() => navigate("/")}>
+          <span
+            style={styles.logout}
+            onClick={() => {
+              cerrarSesion();
+              navigate("/");
+            }}
+          >
             Cerrar sesión
           </span>
         </div>

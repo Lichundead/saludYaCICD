@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { registrarPaciente } from "../services/api";
 
 function RegisterPaciente() {
   const navigate = useNavigate();
@@ -22,22 +23,11 @@ function RegisterPaciente() {
       [name]: value
     });
   };
-  const API = process.env.REACT_APP_API_URL;
   const handleRegister = async (e) => {
     e.preventDefault();
 
-    console.log("FORM:", form); 
-
     try {
-      const res = await fetch(`${API}/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(form)
-      });
-
-      const data = await res.json();
+      const data = await registrarPaciente(form);
 
       if (data.success) {
         alert("Cuenta creada");
@@ -47,6 +37,7 @@ function RegisterPaciente() {
       }
 
     } catch (error) {
+      console.error(error);
       alert("Error servidor");
     }
   };

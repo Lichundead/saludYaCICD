@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { cerrarSesion } from "../services/api";
 
-function DashboardAdmin() {
+function DashboardMedico() {
   const navigate = useNavigate();
   const [vista, setVista] = useState("calendario");
 
@@ -99,7 +100,10 @@ function DashboardAdmin() {
 
           <button
             style={styles.logout}
-            onClick={() => navigate("/")}
+            onClick={() => {
+              cerrarSesion();
+              navigate("/");
+            }}
           >
             Cerrar sesión
           </button>
@@ -386,4 +390,4 @@ const styles = {
   }
 };
 
-export default DashboardAdmin;
+export default DashboardMedico;

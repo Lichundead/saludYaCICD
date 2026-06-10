@@ -2,10 +2,11 @@
  * @file swagger.js
  * @description Configuración de la documentación OpenAPI 3.0 de la API de SaludYa.
  * Usa `swagger-jsdoc` para generar la especificación a partir de las anotaciones
- * `@openapi` escritas en los comentarios de `server.js`.
+ * `@openapi` escritas en los archivos de rutas.
  * @module swagger
  */
 
+const path = require("node:path");
 const swaggerJSDoc = require("swagger-jsdoc");
 
 /**
@@ -38,9 +39,26 @@ const options = {
         description: "Servidor de producción (Render)",
       },
     ],
+    tags: [
+      {
+        name: "Autenticación",
+        description: "Inicio de sesión y registro de usuarios",
+      },
+      { name: "Usuarios", description: "Consulta de datos de usuarios" },
+      { name: "Citas", description: "Creación y consulta de citas médicas" },
+    ],
     components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          description:
+            "Token devuelto por POST /login. Enviar como `Authorization: Bearer <token>`.",
+        },
+      },
       schemas: {
-        /** Esquema de un usuario almacenado en la tabla `usuarios`. */
+        /** Esquema de un usuario (la API nunca expone el campo `password`). */
         Usuario: {
           type: "object",
           properties: {
@@ -51,11 +69,15 @@ const options = {
               format: "email",
               example: "demo@saludya.com",
             },
-            password: { type: "string", example: "123456" },
             telefono: { type: "string", example: "3000000000" },
             tipo_id: { type: "string", example: "CC" },
             numero_id: { type: "string", example: "12345678" },
             rh: { type: "string", example: "O+" },
+            rol: {
+              type: "string",
+              enum: ["paciente", "medico", "admin"],
+              example: "paciente",
+            },
           },
         },
         /** Esquema de una cita médica almacenada en la tabla `citas`. */
@@ -78,7 +100,7 @@ const options = {
     },
   },
   // Archivos donde swagger-jsdoc buscará las anotaciones @openapi.
-  apis: ["./server.js"],
+  apis: [path.join(__dirname, "routes", "*.js")],
 };
 
 /**

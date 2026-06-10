@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { obtenerSesion } from "../services/api";
 
 function PerfilPaciente() {
   const navigate = useNavigate();
@@ -13,7 +14,7 @@ function PerfilPaciente() {
   });
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("usuario"));
+    const user = obtenerSesion();
     if (user) setDatos(user);
   }, []);
 

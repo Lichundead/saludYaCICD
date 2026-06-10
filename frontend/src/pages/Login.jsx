@@ -1,13 +1,20 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { guardarSesion, login } from "../services/api";
+
+/** Dashboard inicial según el rol que devuelve el backend. */
+const RUTAS_POR_ROL = {
+  admin: "/dashboard-admin",
+  medico: "/dashboard-medico",
+  paciente: "/dashboard-paciente",
+};
 
 function Login() {
   const navigate = useNavigate();
-  
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
-  const API = process.env.REACT_APP_API_URL;
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -19,33 +26,13 @@ function Login() {
     }
 
     try {
-      const response = await fetch(`${API}/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ email, password })
-      });
-
-      const data = await response.json();
+      const data = await login(email, password);
 
       if (data.success) {
-        
-        localStorage.setItem("usuario", JSON.stringify(data.user));
-
-        
-        if (email.includes("admin")) {
-          navigate("/dashboard-admin");
-        } 
-        else if (email.includes("medico")) {
-          navigate("/dashboard-medico");
-        } 
-        else {
-          navigate("/dashboard-paciente");
-        }
-
+        guardarSesion(data);
+        navigate(RUTAS_POR_ROL[data.user.rol] || "/dashboard-paciente");
       } else {
-        alert("Usuario no encontrado");
+        alert("Correo o contraseña incorrectos");
       }
 
     } catch (error) {

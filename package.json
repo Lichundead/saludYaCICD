@@ -2,5 +2,12 @@
   "name": "saludyacicd",
   "private": true,
   "version": "1.0.0",
-  "packageManager": "pnpm@10.12.4"
+  "packageManager": "pnpm@10.12.4",
+  "scripts": {
+    "dev:frontend": "pnpm --filter saludya-frontend dev",
+    "dev:backend": "pnpm --filter saludya-backend dev",
+    "build": "pnpm --filter saludya-frontend build",
+    "lint": "pnpm --filter saludya-frontend lint",
+    "test": "pnpm -r test"
+  }
 }
