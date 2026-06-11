@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Calendar,
   CalendarCheck,
+  CalendarClock,
   CalendarDays,
   Check,
   CheckCircle,
@@ -11,16 +12,22 @@ import {
   Clock,
   Home,
   LogOut,
+  Plus,
   Stethoscope,
+  Trash2,
   X,
 } from "lucide-react";
 import {
   actualizarEstadoCita,
   cerrarSesion,
+  crearDisponibilidad,
+  eliminarDisponibilidad,
+  obtenerDisponibilidad,
   obtenerSesion,
   obtenerTodasLasCitas,
+  reprogramarCita,
 } from "../services/api";
-import "../styles/dashboard-medico.css";
+import "../styles/dashboard.css";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -72,6 +79,16 @@ function DashboardMedico() {
   const [filtro, setFiltro] = useState("todas");
   const [diaSeleccionado, setDiaSeleccionado] = useState(null);
 
+  const [bloques, setBloques] = useState([]);
+  const [formAgenda, setFormAgenda] = useState({
+    fecha: "",
+    hora_inicio: "",
+    hora_fin: "",
+  });
+
+  const [reprogramandoId, setReprogramandoId] = useState(null);
+  const [formReprogramar, setFormReprogramar] = useState({ fecha: "", hora: "" });
+
   const ahora = new Date();
   const [calMes, setCalMes] = useState(ahora.getMonth());
   const [calAnio, setCalAnio] = useState(ahora.getFullYear());
@@ -82,7 +99,91 @@ function DashboardMedico() {
         if (data.success) setCitas(data.citas);
       })
       .catch((err) => console.error(err));
+
+    obtenerDisponibilidad()
+      .then((data) => {
+        if (data.success) setBloques(data.bloques);
+      })
+      .catch((err) => console.error(err));
   }, []);
+
+  const agregarBloque = async (e) => {
+    e.preventDefault();
+
+    if (!formAgenda.fecha || !formAgenda.hora_inicio || !formAgenda.hora_fin) {
+      alert("Completa fecha, hora de inicio y hora de fin");
+      return;
+    }
+
+    try {
+      const data = await crearDisponibilidad(formAgenda);
+
+      if (data.success) {
+        setBloques((actuales) =>
+          [...actuales, data.bloque].sort((a, b) =>
+            `${a.fecha}${a.hora_inicio}`.localeCompare(`${b.fecha}${b.hora_inicio}`)
+          )
+        );
+        setFormAgenda({ fecha: "", hora_inicio: "", hora_fin: "" });
+      } else {
+        alert(data.message || "No se pudo crear el bloque");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Error conectando con el servidor");
+    }
+  };
+
+  const quitarBloque = async (bloque) => {
+    if (!confirm(`¿Eliminar la disponibilidad del ${formatearFechaLarga(bloque.fecha)} de ${bloque.hora_inicio} a ${bloque.hora_fin}?`)) {
+      return;
+    }
+
+    try {
+      const data = await eliminarDisponibilidad(bloque.id);
+
+      if (data.success) {
+        setBloques((actuales) => actuales.filter((b) => b.id !== bloque.id));
+      } else {
+        alert(data.message || "No se pudo eliminar el bloque");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Error conectando con el servidor");
+    }
+  };
+
+  const abrirReprogramar = (cita) => {
+    setReprogramandoId(cita.id);
+    setFormReprogramar({ fecha: cita.fecha, hora: cita.hora });
+  };
+
+  const guardarReprogramacion = async (cita) => {
+    if (!formReprogramar.fecha || !formReprogramar.hora) {
+      alert("Indica la nueva fecha y hora");
+      return;
+    }
+
+    try {
+      const data = await reprogramarCita(
+        cita.id,
+        formReprogramar.fecha,
+        formReprogramar.hora
+      );
+
+      if (data.success) {
+        setCitas((actuales) =>
+          actuales.map((c) => (c.id === cita.id ? { ...c, ...data.cita } : c))
+        );
+        setReprogramandoId(null);
+      } else {
+        alert(data.message || "No se pudo reprogramar la cita");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Error conectando con el servidor");
+    }
+  };
 
   const cambiarEstado = async (cita, estado) => {
     try {
@@ -175,47 +276,60 @@ function DashboardMedico() {
   });
 
   return (
-    <div className="medico-app">
-      <aside className="medico-sidebar">
-        <div className="medico-sidebar__brand">
-          <div className="medico-sidebar__logo">
+    <div className="panel-app">
+      <aside className="panel-sidebar">
+        <div className="panel-sidebar__brand">
+          <div className="panel-sidebar__logo">
             <Stethoscope size={18} />
           </div>
-          <div className="medico-sidebar__title">
+          <div className="panel-sidebar__title">
             <h1>SaludYa</h1>
             <span>Panel médico</span>
           </div>
         </div>
 
-        <nav className="medico-sidebar__nav">
+        <nav className="panel-sidebar__nav">
           <button
-            className={`medico-sidebar__link ${vista === "inicio" ? "medico-sidebar__link--active" : ""}`}
+            className={`panel-sidebar__link ${vista === "inicio" ? "panel-sidebar__link--active" : ""}`}
             onClick={() => setVista("inicio")}
           >
             <Home size={16} />
             <span>Inicio</span>
           </button>
           <button
-            className={`medico-sidebar__link ${vista === "citas" ? "medico-sidebar__link--active" : ""}`}
+            className={`panel-sidebar__link ${vista === "citas" ? "panel-sidebar__link--active" : ""}`}
             onClick={() => setVista("citas")}
           >
             <CalendarCheck size={16} />
             <span>Gestión de Citas</span>
           </button>
+          <button
+            className={`panel-sidebar__link ${vista === "agenda" ? "panel-sidebar__link--active" : ""}`}
+            onClick={() => setVista("agenda")}
+          >
+            <CalendarClock size={16} />
+            <span>Gestión de Agenda</span>
+          </button>
         </nav>
       </aside>
 
-      <main className="medico-main">
-        <header className="medico-header">
-          <div className="medico-header__top">
-            <div className="medico-header__info">
-              <h2>{vista === "inicio" ? "Panel médico" : "Gestión de Citas"}</h2>
+      <main className="panel-main">
+        <header className="panel-header">
+          <div className="panel-header__top">
+            <div className="panel-header__info">
+              <h2>
+                {vista === "inicio"
+                  ? "Panel médico"
+                  : vista === "citas"
+                    ? "Gestión de Citas"
+                    : "Gestión de Agenda"}
+              </h2>
               <p>
                 {fechaHeader.charAt(0).toUpperCase() + fechaHeader.slice(1)}
                 {usuario?.nombre ? ` · ${usuario.nombre}` : ""}
               </p>
             </div>
-            <button className="medico-header__logout" onClick={salir}>
+            <button className="panel-header__logout" onClick={salir}>
               <LogOut size={15} />
               <span>Cerrar sesión</span>
             </button>
@@ -253,7 +367,7 @@ function DashboardMedico() {
         </header>
 
         {vista === "inicio" && (
-          <div className="medico-content">
+          <div className="panel-content">
             <section className="solicitudes">
               <h3>Solicitudes pendientes</h3>
 
@@ -413,42 +527,88 @@ function DashboardMedico() {
                       </p>
                     ) : (
                       citasDelDia.map((cita) => (
-                        <div key={cita.id} className="medico-cita-row">
+                        <div key={cita.id} className="cita-row">
                           <div>
-                            <div className="medico-cita-row__patient">
+                            <div className="cita-row__patient">
                               {cita.paciente_nombre || cita.paciente_email}
                             </div>
-                            <div className="medico-cita-row__details">
+                            <div className="cita-row__details">
                               {cita.especialidad} · {cita.hora}
                             </div>
                           </div>
-                          <div className="medico-cita-row__actions">
+                          <div className="cita-row__actions">
                             <Badge estado={cita.estado} />
-                            {cita.estado === "pendiente" && (
-                              <div className="medico-cita-row__action-row">
-                                <button
-                                  className="btn-confirm btn-sm"
-                                  onClick={() => cambiarEstado(cita, "confirmada")}
-                                >
-                                  Confirmar
-                                </button>
-                                <button
-                                  className="btn-reject btn-sm"
-                                  onClick={() => cambiarEstado(cita, "rechazada")}
-                                >
-                                  Rechazar
-                                </button>
+
+                            {reprogramandoId === cita.id ? (
+                              <div className="reprogramar-form">
+                                <input
+                                  type="date"
+                                  className="panel-input"
+                                  value={formReprogramar.fecha}
+                                  onChange={(e) =>
+                                    setFormReprogramar({ ...formReprogramar, fecha: e.target.value })
+                                  }
+                                />
+                                <input
+                                  type="time"
+                                  className="panel-input"
+                                  value={formReprogramar.hora}
+                                  onChange={(e) =>
+                                    setFormReprogramar({ ...formReprogramar, hora: e.target.value })
+                                  }
+                                />
+                                <div className="cita-row__action-row">
+                                  <button
+                                    className="btn-confirm btn-sm"
+                                    onClick={() => guardarReprogramacion(cita)}
+                                  >
+                                    Guardar
+                                  </button>
+                                  <button
+                                    className="btn-reject btn-sm"
+                                    onClick={() => setReprogramandoId(null)}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
                               </div>
-                            )}
-                            {cita.estado === "confirmada" && (
-                              <div className="medico-cita-row__action-row">
-                                <button
-                                  className="btn-confirm btn-sm"
-                                  onClick={() => cambiarEstado(cita, "atendida")}
-                                >
-                                  Marcar atendida
-                                </button>
-                              </div>
+                            ) : (
+                              <>
+                                {cita.estado === "pendiente" && (
+                                  <div className="cita-row__action-row">
+                                    <button
+                                      className="btn-confirm btn-sm"
+                                      onClick={() => cambiarEstado(cita, "confirmada")}
+                                    >
+                                      Confirmar
+                                    </button>
+                                    <button
+                                      className="btn-reject btn-sm"
+                                      onClick={() => cambiarEstado(cita, "rechazada")}
+                                    >
+                                      Rechazar
+                                    </button>
+                                  </div>
+                                )}
+                                {cita.estado === "confirmada" && (
+                                  <div className="cita-row__action-row">
+                                    <button
+                                      className="btn-confirm btn-sm"
+                                      onClick={() => cambiarEstado(cita, "atendida")}
+                                    >
+                                      Marcar atendida
+                                    </button>
+                                  </div>
+                                )}
+                                {["pendiente", "confirmada"].includes(cita.estado) && (
+                                  <button
+                                    className="btn-outline btn-sm"
+                                    onClick={() => abrirReprogramar(cita)}
+                                  >
+                                    <CalendarClock size={12} /> Reprogramar
+                                  </button>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
@@ -460,9 +620,87 @@ function DashboardMedico() {
             </div>
           </section>
         )}
+
+        {vista === "agenda" && (
+          <section className="citas-calendario">
+            <div className="citas-cal__header">
+              <h3>Mi disponibilidad</h3>
+            </div>
+
+            <form className="agenda-form" onSubmit={agregarBloque}>
+              <div>
+                <label className="agenda-form__label">Fecha</label>
+                <input
+                  type="date"
+                  className="panel-input"
+                  value={formAgenda.fecha}
+                  onChange={(e) =>
+                    setFormAgenda({ ...formAgenda, fecha: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <label className="agenda-form__label">Desde</label>
+                <input
+                  type="time"
+                  className="panel-input"
+                  value={formAgenda.hora_inicio}
+                  onChange={(e) =>
+                    setFormAgenda({ ...formAgenda, hora_inicio: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <label className="agenda-form__label">Hasta</label>
+                <input
+                  type="time"
+                  className="panel-input"
+                  value={formAgenda.hora_fin}
+                  onChange={(e) =>
+                    setFormAgenda({ ...formAgenda, hora_fin: e.target.value })
+                  }
+                />
+              </div>
+              <button type="submit" className="btn-confirm">
+                <Plus size={14} /> Agregar bloque
+              </button>
+            </form>
+
+            <p className="agenda-form__hint">
+              Los pacientes solo podrán agendar citas dentro de estos bloques, en
+              turnos de 30 minutos.
+            </p>
+
+            {bloques.length === 0 ? (
+              <p className="empty-state">
+                Aún no has definido disponibilidad. Agrega tu primer bloque de atención.
+              </p>
+            ) : (
+              bloques.map((bloque) => (
+                <div key={bloque.id} className="cita-row">
+                  <div>
+                    <div className="cita-row__patient">
+                      {formatearFechaLarga(bloque.fecha)}
+                    </div>
+                    <div className="cita-row__details">
+                      {bloque.hora_inicio} – {bloque.hora_fin}
+                    </div>
+                  </div>
+                  <button
+                    className="btn-reject btn-sm"
+                    onClick={() => quitarBloque(bloque)}
+                  >
+                    <Trash2 size={12} /> Eliminar
+                  </button>
+                </div>
+              ))
+            )}
+          </section>
+        )}
       </main>
     </div>
   );
 }
 
 export default DashboardMedico;
+

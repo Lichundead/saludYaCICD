@@ -6,22 +6,22 @@ beforeEach(() => {
   window.history.pushState({}, "", "/");
 });
 
-test("la app carga y muestra la pantalla de inicio de sesión", () => {
+test("la app carga y muestra la pantalla de inicio de sesión", async () => {
   render(<App />);
 
-  expect(screen.getByText("Bienvenido")).toBeInTheDocument();
+  expect(await screen.findByText("Bienvenido")).toBeInTheDocument();
   expect(screen.getByText("Iniciar sesión")).toBeInTheDocument();
 });
 
-test("redirige al login al entrar a una ruta protegida sin sesión", () => {
+test("redirige al login al entrar a una ruta protegida sin sesión", async () => {
   window.history.pushState({}, "", "/dashboard-paciente");
 
   render(<App />);
 
-  expect(screen.getByText("Bienvenido")).toBeInTheDocument();
+  expect(await screen.findByText("Bienvenido")).toBeInTheDocument();
 });
 
-test("el dashboard del médico muestra estadísticas, solicitudes y agenda", () => {
+test("el dashboard del médico muestra estadísticas, solicitudes y agenda", async () => {
   localStorage.setItem("token", "token-de-prueba");
   localStorage.setItem(
     "usuario",
@@ -32,7 +32,7 @@ test("el dashboard del médico muestra estadísticas, solicitudes y agenda", () 
   render(<App />);
 
   expect(
-    screen.getByRole("heading", { name: "Panel médico" })
+    await screen.findByRole("heading", { name: "Panel médico" })
   ).toBeInTheDocument();
   expect(screen.getByText("Citas hoy")).toBeInTheDocument();
   expect(screen.getByText("Solicitudes pendientes")).toBeInTheDocument();
@@ -42,7 +42,7 @@ test("el dashboard del médico muestra estadísticas, solicitudes y agenda", () 
   ).toBeInTheDocument();
 });
 
-test("permite entrar a una ruta protegida con sesión iniciada", () => {
+test("permite entrar a una ruta protegida con sesión iniciada", async () => {
   localStorage.setItem("token", "token-de-prueba");
   localStorage.setItem(
     "usuario",
@@ -52,5 +52,5 @@ test("permite entrar a una ruta protegida con sesión iniciada", () => {
 
   render(<App />);
 
-  expect(screen.getByText("Panel del paciente")).toBeInTheDocument();
+  expect(await screen.findByText("Panel del paciente")).toBeInTheDocument();
 });

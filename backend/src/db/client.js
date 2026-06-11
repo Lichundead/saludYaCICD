@@ -12,6 +12,7 @@
  */
 
 const path = require("node:path");
+const { sql } = require("drizzle-orm");
 const config = require("../config");
 const schema = require("./schema");
 
@@ -30,6 +31,9 @@ async function crearConexion() {
     conexion = new Pool({
       connectionString: config.databaseUrl,
       ssl: config.databaseSsl ? { rejectUnauthorized: false } : undefined,
+      max: config.dbPoolMax,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
     });
 
     db = drizzle(conexion, { schema });
@@ -71,8 +75,22 @@ function getDb() {
 }
 
 /**
+ * Comprueba la conectividad con la base de datos (usado por /health).
+ * @returns {Promise<boolean>} true si la base responde.
+ */
+async function ping() {
+  try {
+    if (!db) return false;
+    await db.execute(sql`select 1`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Cierra la conexión de forma ordenada (pool de pg o instancia PGlite).
- * Necesario antes de `process.exit()` en scripts puntuales como el seed.
+ * Necesario antes de `process.exit()` en scripts puntuales y en el apagado.
  */
 async function closeDb() {
   if (conexion?.end) {
@@ -85,4 +103,4 @@ async function closeDb() {
   initPromise = null;
 }
 
-module.exports = { initDb, getDb, closeDb };
+module.exports = { initDb, getDb, ping, closeDb };

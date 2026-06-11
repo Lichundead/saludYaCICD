@@ -6,6 +6,7 @@
  */
 
 const usuariosRepo = require("../repositories/usuarios.repo");
+const disponibilidadRepo = require("../repositories/disponibilidad.repo");
 const { hashPassword } = require("../passwords");
 const {
   EMAIL_REGEX,
@@ -149,6 +150,9 @@ async function crearMedico(req, res, next) {
       especialidad: especialidad ?? null,
       licencia: licencia ?? null,
       rol: "medico",
+      // La contraseña asignada por el admin es temporal: el médico debe
+      // definir la suya en su primer ingreso.
+      debe_cambiar_password: true,
     });
 
     res.status(201).json({ success: true, id: medico.id });
@@ -162,4 +166,99 @@ async function crearMedico(req, res, next) {
   }
 }
 
-module.exports = { getPorEmail, actualizar, listarMedicos, crearMedico };
+/**
+ * Actualiza los datos de una cuenta de médico (solo admin).
+ * El correo, la contraseña y el rol no se modifican por esta vía.
+ *
+ * @param {express.Request} req - `req.params.id` y campos en `req.body`.
+ * @param {express.Response} res - Respuesta JSON con el médico actualizado.
+ * @param {express.NextFunction} next - Pasa errores al middleware de errores.
+ */
+async function actualizarMedico(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    const existente = await usuariosRepo.buscarPorId(id);
+
+    if (!existente || existente.rol !== "medico") {
+      return res
+        .status(404)
+        .json({ success: false, message: "Médico no encontrado" });
+    }
+
+    const { nombre, telefono, tipo_id, numero_id, especialidad, licencia } =
+      req.body;
+
+    const cambios = {};
+    if (nombre !== undefined) cambios.nombre = nombre;
+    if (telefono !== undefined) cambios.telefono = telefono;
+    if (tipo_id !== undefined) cambios.tipo_id = tipo_id;
+    if (numero_id !== undefined) cambios.numero_id = numero_id;
+    if (especialidad !== undefined) cambios.especialidad = especialidad;
+    if (licencia !== undefined) cambios.licencia = licencia;
+
+    if (cambios.nombre !== undefined && !cambios.nombre) {
+      return res
+        .status(400)
+        .json({ success: false, message: "El nombre no puede estar vacío" });
+    }
+
+    if (Object.keys(cambios).length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "No hay campos para actualizar" });
+    }
+
+    const medico = await usuariosRepo.actualizarPorId(id, cambios);
+
+    res.json({ success: true, medico: sinPassword(medico) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Elimina una cuenta de médico (solo admin). Borra primero su
+ * disponibilidad; si tiene citas asociadas, la clave foránea lo impide
+ * y se responde 409.
+ *
+ * @param {express.Request} req - `req.params.id`.
+ * @param {express.Response} res - Respuesta JSON.
+ * @param {express.NextFunction} next - Pasa errores al middleware de errores.
+ */
+async function eliminarMedico(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    const existente = await usuariosRepo.buscarPorId(id);
+
+    if (!existente || existente.rol !== "medico") {
+      return res
+        .status(404)
+        .json({ success: false, message: "Médico no encontrado" });
+    }
+
+    await disponibilidadRepo.eliminarPorMedico(id);
+    await usuariosRepo.eliminarPorId(id);
+
+    res.json({ success: true });
+  } catch (error) {
+    // Violación de FK: el médico tiene citas registradas.
+    for (let e = error; e; e = e.cause) {
+      if (e.code === "23503" || /foreign key|llave foránea/i.test(e.message ?? "")) {
+        return res.status(409).json({
+          success: false,
+          message: "No se puede eliminar: el médico tiene citas registradas",
+        });
+      }
+    }
+    next(error);
+  }
+}
+
+module.exports = {
+  getPorEmail,
+  actualizar,
+  listarMedicos,
+  crearMedico,
+  actualizarMedico,
+  eliminarMedico,
+};

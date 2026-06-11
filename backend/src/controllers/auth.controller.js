@@ -100,4 +100,93 @@ async function register(req, res, next) {
   }
 }
 
-module.exports = { login, register };
+/**
+ * Restablece la contraseña verificando la identidad con el correo y el
+ * número de identificación registrado (no hay servicio de correo, así que
+ * la verificación se hace contra un dato que solo el titular conoce).
+ *
+ * @param {express.Request} req - `req.body` con { email, numero_id, password }.
+ * @param {express.Response} res - Respuesta JSON.
+ * @param {express.NextFunction} next - Pasa errores al middleware de errores.
+ */
+async function recover(req, res, next) {
+  try {
+    const { numero_id, password } = req.body;
+    const email = normalizarEmail(req.body.email);
+
+    if (!email || !numero_id || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Correo, número de identificación y nueva contraseña son requeridos",
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "La contraseña debe tener al menos 6 caracteres",
+      });
+    }
+
+    const user = await usuariosRepo.buscarPorEmail(email);
+
+    // Mensaje genérico: no revelar si el correo existe o cuál dato falló.
+    if (!user || !user.numero_id || user.numero_id !== String(numero_id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Los datos no coinciden con ninguna cuenta",
+      });
+    }
+
+    await usuariosRepo.actualizarPassword(user.id, hashPassword(password));
+
+    res.json({ success: true, message: "Contraseña actualizada" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Cambia la contraseña del usuario autenticado validando la actual.
+ * Usado también para reemplazar la contraseña temporal del primer ingreso
+ * (limpia la marca `debe_cambiar_password`).
+ *
+ * @param {express.Request} req - `req.body` con { password_actual, password_nueva }.
+ * @param {express.Response} res - Respuesta JSON.
+ * @param {express.NextFunction} next - Pasa errores al middleware de errores.
+ */
+async function cambiarPassword(req, res, next) {
+  try {
+    const { password_actual, password_nueva } = req.body;
+
+    if (!password_actual || !password_nueva) {
+      return res.status(400).json({
+        success: false,
+        message: "La contraseña actual y la nueva son requeridas",
+      });
+    }
+
+    if (password_nueva.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "La nueva contraseña debe tener al menos 6 caracteres",
+      });
+    }
+
+    const user = await usuariosRepo.buscarPorId(req.user.sub);
+
+    if (!user || !verifyPassword(password_actual, user.password)) {
+      return res
+        .status(401)
+        .json({ success: false, message: "La contraseña actual es incorrecta" });
+    }
+
+    await usuariosRepo.actualizarPassword(user.id, hashPassword(password_nueva));
+
+    res.json({ success: true, message: "Contraseña actualizada" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { login, register, recover, cambiarPassword };

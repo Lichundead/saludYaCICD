@@ -6,7 +6,8 @@
 
 const citasRepo = require("../repositories/citas.repo");
 const usuariosRepo = require("../repositories/usuarios.repo");
-const { normalizarEmail, esViolacionUnicidad } = require("../utils");
+const { calcularSlotsLibres } = require("./disponibilidad.controller");
+const { HORA_REGEX, normalizarEmail, esViolacionUnicidad } = require("../utils");
 
 /** Estados válidos de una cita. */
 const ESTADOS = ["pendiente", "confirmada", "rechazada", "atendida"];
@@ -41,6 +42,19 @@ async function crear(req, res, next) {
     // Los pacientes solo pueden agendar a su propio nombre: el id sale del
     // token. El personal (admin/medico) puede indicar el paciente por correo.
     const esStaff = ["admin", "medico"].includes(req.user.rol);
+
+    // Los pacientes solo pueden agendar dentro de la disponibilidad que el
+    // médico definió. El personal puede forzar horarios (fuerza mayor).
+    if (!esStaff) {
+      const slots = await calcularSlotsLibres(medico.id);
+      if (!slots[fecha]?.includes(hora)) {
+        return res.status(409).json({
+          success: false,
+          message: "El médico no tiene disponibilidad en ese horario",
+        });
+      }
+    }
+
     let paciente_id = req.user.sub;
 
     if (esStaff && req.body.paciente_email) {
@@ -154,4 +168,59 @@ async function actualizarEstado(req, res, next) {
   }
 }
 
-module.exports = { crear, listarPorEmail, listarTodas, actualizarEstado };
+/**
+ * Reprograma una cita (cambia fecha y hora) por motivos de fuerza mayor.
+ * Solo personal: la ruta aplica `requireRole("admin", "medico")`. Un médico
+ * solo puede reprogramar citas de su propia agenda.
+ *
+ * @param {express.Request} req - `req.params.id` y `req.body` con { fecha, hora }.
+ * @param {express.Response} res - Respuesta JSON con la cita actualizada.
+ * @param {express.NextFunction} next - Pasa errores al middleware de errores.
+ */
+async function reprogramarCita(req, res, next) {
+  try {
+    const { fecha, hora } = req.body;
+    const id = Number(req.params.id);
+
+    if (!fecha || !hora || !/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !HORA_REGEX.test(hora)) {
+      return res.status(400).json({
+        success: false,
+        message: "Fecha (YYYY-MM-DD) y hora (HH:MM) válidas son requeridas",
+      });
+    }
+
+    const cita = await citasRepo.buscarPorId(id);
+    if (!cita) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Cita no encontrada" });
+    }
+
+    if (req.user.rol === "medico" && cita.medico_id !== req.user.sub) {
+      return res.status(403).json({
+        success: false,
+        message: "No puedes reprogramar citas de otro médico",
+      });
+    }
+
+    const actualizada = await citasRepo.reprogramar(id, fecha, hora);
+
+    res.json({ success: true, cita: actualizada });
+  } catch (error) {
+    if (esViolacionUnicidad(error)) {
+      return res.status(409).json({
+        success: false,
+        message: "El médico ya tiene una cita en ese horario",
+      });
+    }
+    next(error);
+  }
+}
+
+module.exports = {
+  crear,
+  listarPorEmail,
+  listarTodas,
+  actualizarEstado,
+  reprogramarCita,
+};

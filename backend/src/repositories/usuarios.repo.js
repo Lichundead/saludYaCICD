@@ -61,12 +61,44 @@ async function actualizarPerfil(email, cambios) {
 }
 
 /**
- * Reemplaza el hash de contraseña de un usuario (re-hash de cuentas antiguas).
+ * Reemplaza el hash de contraseña de un usuario y limpia la marca de
+ * contraseña temporal.
  * @param {number} id
  * @param {string} password - Hash scrypt.
  */
 async function actualizarPassword(id, password) {
-  await getDb().update(usuarios).set({ password }).where(eq(usuarios.id, id));
+  await getDb()
+    .update(usuarios)
+    .set({ password, debe_cambiar_password: false })
+    .where(eq(usuarios.id, id));
+}
+
+/**
+ * Actualiza campos de un usuario identificado por id (CRUD de médicos).
+ * @param {number} id
+ * @param {object} cambios - Columnas a actualizar.
+ * @returns {Promise<object|undefined>} La fila actualizada.
+ */
+async function actualizarPorId(id, cambios) {
+  const [usuario] = await getDb()
+    .update(usuarios)
+    .set(cambios)
+    .where(eq(usuarios.id, id))
+    .returning();
+  return usuario;
+}
+
+/**
+ * Elimina un usuario por id. Lanza violación de FK si tiene citas asociadas.
+ * @param {number} id
+ * @returns {Promise<boolean>} true si existía.
+ */
+async function eliminarPorId(id) {
+  const filas = await getDb()
+    .delete(usuarios)
+    .where(eq(usuarios.id, id))
+    .returning();
+  return filas.length > 0;
 }
 
 /**
@@ -87,5 +119,7 @@ module.exports = {
   crear,
   actualizarPerfil,
   actualizarPassword,
+  actualizarPorId,
+  eliminarPorId,
   listarMedicos,
 };

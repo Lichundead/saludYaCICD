@@ -1,6 +1,21 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { crearCita, obtenerMedicos, obtenerSesion } from "../services/api";
+import { CalendarPlus } from "lucide-react";
+import { crearCita, obtenerMedicos, obtenerSlots } from "../services/api";
+import "../styles/auth.css";
+
+const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+const MESES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+/** "2026-06-15" → "Lunes 15 de junio" (parseo local, sin desfase UTC). */
+function formatearFecha(fecha) {
+  const [anio, mes, dia] = fecha.split("-").map(Number);
+  const d = new Date(anio, mes - 1, dia);
+  return `${DIAS[d.getDay()]} ${dia} de ${MESES[mes - 1]}`;
+}
 
 function AgendarCita() {
   const navigate = useNavigate();
@@ -8,9 +23,11 @@ function AgendarCita() {
   const [medicos, setMedicos] = useState([]);
   const [especialidad, setEspecialidad] = useState("");
   const [medicoId, setMedicoId] = useState("");
+  const [slots, setSlots] = useState({});
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
   const [confirmado, setConfirmado] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     obtenerMedicos()
@@ -20,241 +37,195 @@ function AgendarCita() {
       .catch((err) => console.error(err));
   }, []);
 
+  // La especialidad sale de los médicos registrados.
+  const especialidades = [
+    ...new Set(medicos.map((m) => m.especialidad).filter(Boolean)),
+  ].sort();
+
+  const medicosFiltrados = especialidad
+    ? medicos.filter((m) => m.especialidad === especialidad)
+    : medicos;
+
   const medicoSeleccionado = medicos.find((m) => m.id === Number(medicoId));
+  const fechasDisponibles = Object.keys(slots).sort();
+  const horasDisponibles = fecha ? (slots[fecha] ?? []) : [];
 
-  const handleSubmit = async () => {
-  const usuario = obtenerSesion();
-
-  if (!usuario) {
-    alert("Error: usuario no identificado");
-    return;
-  }
-
-    if (!especialidad || !medicoId || !fecha || !hora) {
-      alert("Completa todos los campos");
-      return;
-    }
-
-    // Se interpreta la fecha como local: new Date("YYYY-MM-DD") la tomaría
-    // como UTC y en Colombia (UTC-5) correría el día de la semana.
-    const [anio, mes, diaMes] = fecha.split("-").map(Number);
-    const diaSemana = new Date(anio, mes - 1, diaMes).getDay();
-
-    if (diaSemana === 0 || diaSemana === 6) {
-      alert("No hay citas disponibles los fines de semana");
-      return;
-    }
-
-    const nuevaCita = {
-      medico_id: Number(medicoId),
-      especialidad,
-      fecha,
-      hora
-    };
+  const cargarSlots = async (id) => {
+    setSlots({});
+    setFecha("");
+    setHora("");
+    if (!id) return;
 
     try {
-      const data = await crearCita(nuevaCita);
+      const data = await obtenerSlots(id);
+      if (data.success) setSlots(data.slots);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const elegirEspecialidad = (valor) => {
+    setEspecialidad(valor);
+    setMedicoId("");
+    setSlots({});
+    setFecha("");
+    setHora("");
+  };
+
+  const elegirMedico = (valor) => {
+    setMedicoId(valor);
+    cargarSlots(valor);
+  };
+
+  const handleSubmit = async () => {
+    setError("");
+
+    if (!medicoId || !fecha || !hora) {
+      setError("Selecciona médico, fecha y hora");
+      return;
+    }
+
+    try {
+      const data = await crearCita({
+        medico_id: Number(medicoId),
+        especialidad: medicoSeleccionado?.especialidad || especialidad || "General",
+        fecha,
+        hora,
+      });
 
       if (data.success) {
         setConfirmado(true);
       } else {
-        alert(data.message || "Error al guardar cita");
+        setError(data.message || "Error al guardar la cita");
+        // El horario pudo ocuparse mientras tanto: refrescar slots.
+        cargarSlots(medicoId);
       }
-
-    } catch (error) {
-      console.error(error);
-      alert("Error con el servidor");
+    } catch (err) {
+      console.error(err);
+      setError("Error conectando con el servidor");
     }
-  }
+  };
+
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-
-   
-        <div style={styles.logo}></div>
-
-        <h2 style={styles.title}>Agendar nueva cita</h2>
-
-        <div style={styles.grid}>
-
-       
-          <select
-            style={styles.input}
-            value={especialidad}
-            onChange={(e) => setEspecialidad(e.target.value)}
-          >
-            <option value="">Especialidad</option>
-            <option>Medicina general</option>
-            <option>Odontología</option>
-            <option>Pediatría</option>
-          </select>
-
-         
-          <select
-            style={styles.input}
-            value={medicoId}
-            onChange={(e) => setMedicoId(e.target.value)}
-          >
-            <option value="">Médico</option>
-            {medicos.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.nombre}
-                {m.especialidad ? ` — ${m.especialidad}` : ""}
-              </option>
-            ))}
-          </select>
-
-
-          <input
-            type="date"
-            style={styles.input}
-            value={fecha}
-            onChange={(e) => setFecha(e.target.value)}
-          />
-
-    
-          <select
-            style={styles.input}
-            value={hora}
-            onChange={(e) => setHora(e.target.value)}
-          >
-            <option value="">Selecciona hora</option>
-            <option>08:00</option>
-            <option>08:30</option>
-            <option>09:00</option>
-            <option>09:30</option>
-            <option>10:00</option>
-            <option>10:30</option>
-            <option>11:00</option>
-            <option>11:30</option>
-            <option>14:00</option>
-            <option>14:30</option>
-            <option>15:00</option>
-            <option>15:30</option>
-            <option>16:00</option>
-          </select>
-
+    <div className="auth-container">
+      <div className="auth-card auth-card--wide">
+        <div className="auth-brand">
+          <div className="auth-brand__logo">
+            <CalendarPlus size={26} />
+          </div>
+          <span className="auth-brand__name">SaludYa</span>
         </div>
 
-        
-        {!confirmado ? (
-          <div style={styles.buttons}>
-            <button
-              style={styles.cancel}
-              onClick={() => navigate("/dashboard-paciente")}
-            >
-              Cancelar
-            </button>
+        <h2 className="auth-title">Agendar nueva cita</h2>
+        <p className="auth-subtitle">
+          Los horarios mostrados corresponden a la disponibilidad real del médico
+        </p>
 
-            <button
-              style={styles.confirm}
-              onClick={handleSubmit}
+        {error && <div className="auth-message auth-message--error">{error}</div>}
+
+        {!confirmado ? (
+          <>
+            <label className="auth-label">Especialidad</label>
+            <select
+              className="auth-input"
+              value={especialidad}
+              onChange={(e) => elegirEspecialidad(e.target.value)}
             >
-              Confirmar
+              <option value="">Todas las especialidades</option>
+              {especialidades.map((esp) => (
+                <option key={esp} value={esp}>
+                  {esp}
+                </option>
+              ))}
+            </select>
+
+            <label className="auth-label">Médico</label>
+            <select
+              className="auth-input"
+              value={medicoId}
+              onChange={(e) => elegirMedico(e.target.value)}
+            >
+              <option value="">Selecciona un médico</option>
+              {medicosFiltrados.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.nombre}
+                  {m.especialidad ? ` — ${m.especialidad}` : ""}
+                </option>
+              ))}
+            </select>
+
+            <label className="auth-label">Fecha disponible</label>
+            <select
+              className="auth-input"
+              value={fecha}
+              onChange={(e) => {
+                setFecha(e.target.value);
+                setHora("");
+              }}
+              disabled={!medicoId}
+            >
+              <option value="">
+                {!medicoId
+                  ? "Primero selecciona un médico"
+                  : fechasDisponibles.length === 0
+                    ? "El médico no tiene horarios disponibles"
+                    : "Selecciona una fecha"}
+              </option>
+              {fechasDisponibles.map((f) => (
+                <option key={f} value={f}>
+                  {formatearFecha(f)}
+                </option>
+              ))}
+            </select>
+
+            <label className="auth-label">Hora disponible</label>
+            <select
+              className="auth-input"
+              value={hora}
+              onChange={(e) => setHora(e.target.value)}
+              disabled={!fecha}
+            >
+              <option value="">
+                {fecha ? "Selecciona una hora" : "Primero selecciona una fecha"}
+              </option>
+              {horasDisponibles.map((h) => (
+                <option key={h} value={h}>
+                  {h}
+                </option>
+              ))}
+            </select>
+
+            <button className="auth-button" onClick={handleSubmit}>
+              Confirmar cita
             </button>
-          </div>
+            <p className="auth-footer">
+              <span
+                className="auth-link"
+                onClick={() => navigate("/dashboard-paciente")}
+              >
+                Cancelar y volver
+              </span>
+            </p>
+          </>
         ) : (
           <>
-           
-            <div style={styles.success}>
-              Tu cita fue agendada para el <strong>{fecha}</strong> a las{" "}
-              <strong>{hora}</strong> con{" "}
-              <strong>{medicoSeleccionado?.nombre}</strong>.
+            <div className="auth-message auth-message--success">
+              Tu cita fue agendada para el <strong>{formatearFecha(fecha)}</strong> a
+              las <strong>{hora}</strong> con{" "}
+              <strong>{medicoSeleccionado?.nombre}</strong>. Quedará confirmada
+              cuando el médico la acepte.
             </div>
-
             <button
-              style={styles.confirm}
+              className="auth-button"
               onClick={() => navigate("/dashboard-paciente")}
             >
-              Volver
+              Volver al panel
             </button>
           </>
         )}
-
       </div>
     </div>
   );
 }
-
-const styles = {
-  container: {
-    height: "100vh",
-    background: "#E5E6E8",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center"
-  },
-
-  card: {
-    width: "600px",
-    background: "#FFFFFF",
-    padding: "32px",
-    borderRadius: "16px",
-    boxShadow: "0px 6px 16px rgba(0,0,0,0.08)",
-    textAlign: "center"
-  },
-
-  logo: {
-    width: "56px",
-    height: "56px",
-    background: "#2F5FD0",
-    borderRadius: "12px",
-    margin: "0 auto 12px"
-  },
-
-  title: {
-    marginBottom: "24px",
-    color: "#111827"
-  },
-
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "16px",
-    marginBottom: "24px"
-  },
-
-  input: {
-    height: "44px",
-    borderRadius: "10px",
-    border: "none",
-    background: "#F3F4F6",
-    padding: "0 12px"
-  },
-
-  buttons: {
-    display: "flex",
-    justifyContent: "center",
-    gap: "24px"
-  },
-
-  cancel: {
-    background: "#6B7280",
-    color: "#fff",
-    border: "none",
-    padding: "10px 20px",
-    borderRadius: "10px",
-    cursor: "pointer"
-  },
-
-  confirm: {
-    background: "#2F5FD0",
-    color: "#fff",
-    border: "none",
-    padding: "10px 20px",
-    borderRadius: "10px",
-    cursor: "pointer",
-    marginTop: "10px"
-  },
-
-  success: {
-    background: "#DCFCE7",
-    color: "#166534",
-    padding: "16px",
-    borderRadius: "10px",
-    marginBottom: "20px",
-    fontSize: "14px"
-  }
-};
 
 export default AgendarCita;

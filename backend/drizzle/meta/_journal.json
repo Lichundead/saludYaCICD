@@ -8,6 +8,13 @@
       "when": 1781158280136,
       "tag": "0000_esquema-inicial",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781190492559,
+      "tag": "0001_disponibilidad-y-password-temporal",
+      "breakpoints": true
     }
   ]
 }

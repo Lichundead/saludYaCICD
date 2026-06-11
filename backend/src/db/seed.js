@@ -8,11 +8,13 @@
  * @module db/seed
  */
 
+const { eq } = require("drizzle-orm");
 const { hashPassword } = require("../passwords");
-const { usuarios } = require("./schema");
+const { usuarios, disponibilidad } = require("./schema");
 
 /**
- * Inserta los usuarios de demostración si no existen.
+ * Inserta los usuarios de demostración si no existen, y bloques de
+ * disponibilidad para el médico demo (días hábiles de los próximos 30 días).
  * @param {object} db - Instancia de Drizzle.
  */
 async function seedDemoData(db) {
@@ -55,6 +57,37 @@ async function seedDemoData(db) {
       },
     ])
     .onConflictDoNothing({ target: usuarios.email });
+
+  // Disponibilidad demo: días hábiles de los próximos 30 días,
+  // mañana (08:00-12:00) y tarde (14:00-17:00).
+  const [medicoDemo] = await db
+    .select()
+    .from(usuarios)
+    .where(eq(usuarios.email, "medico@saludya.com"));
+
+  if (medicoDemo) {
+    const bloques = [];
+    const hoy = new Date();
+
+    for (let i = 0; i < 30; i++) {
+      const dia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + i);
+      const diaSemana = dia.getDay();
+      if (diaSemana === 0 || diaSemana === 6) continue;
+
+      const fecha = `${dia.getFullYear()}-${String(dia.getMonth() + 1).padStart(2, "0")}-${String(dia.getDate()).padStart(2, "0")}`;
+      bloques.push(
+        { medico_id: medicoDemo.id, fecha, hora_inicio: "08:00", hora_fin: "12:00" },
+        { medico_id: medicoDemo.id, fecha, hora_inicio: "14:00", hora_fin: "17:00" }
+      );
+    }
+
+    await db
+      .insert(disponibilidad)
+      .values(bloques)
+      .onConflictDoNothing({
+        target: [disponibilidad.medico_id, disponibilidad.fecha, disponibilidad.hora_inicio],
+      });
+  }
 }
 
 module.exports = { seedDemoData };

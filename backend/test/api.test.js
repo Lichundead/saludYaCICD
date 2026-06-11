@@ -4,10 +4,13 @@
  * y el `fetch` nativo de Node contra PGlite (PostgreSQL embebido) en memoria.
  */
 
+// Entorno de prueba: silencia los logs y evita la validación de producción.
+process.env.NODE_ENV = "test";
 // Postgres embebido en memoria: mismo dialecto que producción, sin servicios.
 process.env.PGLITE_DIR = "memory://";
-// Límite alto para que el rate limiting no interfiera con la suite.
-process.env.AUTH_RATE_LIMIT = "1000";
+// Límites altos para que el rate limiting no interfiera con la suite.
+process.env.AUTH_RATE_LIMIT = "100000";
+process.env.GLOBAL_RATE_LIMIT = "100000";
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
@@ -39,6 +42,23 @@ function login(email, password) {
   });
 }
 
+/**
+ * Próximo día hábil (lunes-viernes) a partir de hoy + diasExtra, en
+ * formato YYYY-MM-DD. El seed crea disponibilidad demo en días hábiles
+ * de los próximos 30 días, así que estas fechas siempre tienen bloques.
+ */
+function proximoDiaHabil(diasExtra = 1) {
+  const fecha = new Date();
+  fecha.setDate(fecha.getDate() + diasExtra);
+  while (fecha.getDay() === 0 || fecha.getDay() === 6) {
+    fecha.setDate(fecha.getDate() + 1);
+  }
+  return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
+}
+
+const FECHA_CITA = proximoDiaHabil(1);
+const FECHA_CITA_2 = proximoDiaHabil(4);
+
 before(async () => {
   const db = await initDb();
   await seedDemoData(db);
@@ -59,10 +79,11 @@ after(() => {
   server.close();
 });
 
-test("GET /health responde ok", async () => {
+test("GET /health responde ok y confirma la base de datos", async () => {
   const { status, body } = await api("/health");
   assert.equal(status, 200);
   assert.equal(body.success, true);
+  assert.equal(body.db, "up");
 });
 
 test("las respuestas incluyen cabeceras de seguridad (helmet)", async () => {
@@ -300,7 +321,7 @@ test("POST /citas exige token (401 sin autenticación)", async () => {
     body: JSON.stringify({
       medico_id: 1,
       especialidad: "Medicina general",
-      fecha: "2026-06-15",
+      fecha: FECHA_CITA,
       hora: "09:30",
     }),
   });
@@ -316,7 +337,7 @@ test("un paciente crea citas a su propio nombre aunque envíe otro correo", asyn
       paciente_email: "otro@saludya.com",
       medico_id: medicoDemoId,
       especialidad: "Medicina general",
-      fecha: "2026-06-15",
+      fecha: FECHA_CITA,
       hora: "09:30",
     }),
   });
@@ -332,20 +353,48 @@ test("un paciente crea citas a su propio nombre aunque envíe otro correo", asyn
   assert.equal(listado.body.citas[0].estado, "pendiente");
 });
 
-test("la base de datos impide el doble agendamiento del mismo horario (409)", async () => {
+test("no se puede agendar dos veces el mismo horario del médico (409)", async () => {
   const { status, body } = await api("/citas", {
     method: "POST",
     token: tokenPaciente,
     body: JSON.stringify({
       medico_id: medicoDemoId,
       especialidad: "Medicina general",
-      fecha: "2026-06-15",
+      fecha: FECHA_CITA,
       hora: "09:30",
     }),
   });
 
   assert.equal(status, 409);
   assert.equal(body.success, false);
+});
+
+test("un paciente no puede agendar fuera de la disponibilidad del médico (409)", async () => {
+  const fueraDeHorario = await api("/citas", {
+    method: "POST",
+    token: tokenPaciente,
+    body: JSON.stringify({
+      medico_id: medicoDemoId,
+      especialidad: "Medicina general",
+      fecha: FECHA_CITA,
+      hora: "20:00",
+    }),
+  });
+
+  assert.equal(fueraDeHorario.status, 409);
+  assert.equal(fueraDeHorario.body.success, false);
+});
+
+test("GET /medicos/:id/slots refleja la disponibilidad menos las citas tomadas", async () => {
+  const { status, body } = await api(`/medicos/${medicoDemoId}/slots`, {
+    token: tokenPaciente,
+  });
+
+  assert.equal(status, 200);
+  const horas = body.slots[FECHA_CITA];
+  assert.ok(Array.isArray(horas));
+  assert.ok(horas.includes("08:00"));
+  assert.ok(!horas.includes("09:30"), "la hora de la cita tomada no debe estar libre");
 });
 
 test("POST /citas rechaza médicos inexistentes o que no son médicos", async () => {
@@ -355,7 +404,7 @@ test("POST /citas rechaza médicos inexistentes o que no son médicos", async ()
     body: JSON.stringify({
       medico_id: 99999,
       especialidad: "Medicina general",
-      fecha: "2026-06-16",
+      fecha: FECHA_CITA_2,
       hora: "10:00",
     }),
   });
@@ -402,7 +451,8 @@ test("GET /citas lista todas las citas con nombres de paciente y médico (solo p
 });
 
 test("un médico solo ve las citas de su propia agenda; el admin las ve todas (RF-12)", async () => {
-  // El admin agenda una cita con la otra médica (Paula García).
+  // El admin agenda una cita con la otra médica (Paula García): el personal
+  // puede forzar horarios fuera de la disponibilidad (fuerza mayor).
   const medicos = await api("/medicos", { token: tokenAdmin });
   const paula = medicos.body.medicos.find((m) => m.email === "paula@saludya.com");
 
@@ -413,7 +463,7 @@ test("un médico solo ve las citas de su propia agenda; el admin las ve todas (R
       paciente_email: "demo@saludya.com",
       medico_id: paula.id,
       especialidad: "Pediatría",
-      fecha: "2026-06-20",
+      fecha: FECHA_CITA_2,
       hora: "11:00",
     }),
   });
@@ -465,6 +515,217 @@ test("PATCH /citas/:id/estado valida estado y existencia, y rechaza pacientes", 
     body: JSON.stringify({ estado: "confirmada" }),
   });
   assert.equal(comoPaciente.status, 403);
+});
+
+test("POST /recover restablece la contraseña verificando el documento", async () => {
+  const exito = await api("/recover", {
+    method: "POST",
+    body: JSON.stringify({
+      email: "demo@saludya.com",
+      numero_id: "12345678",
+      password: "recuperada1",
+    }),
+  });
+  assert.equal(exito.status, 200);
+
+  const sesion = await login("demo@saludya.com", "recuperada1");
+  assert.equal(sesion.status, 200);
+
+  const documentoIncorrecto = await api("/recover", {
+    method: "POST",
+    body: JSON.stringify({
+      email: "demo@saludya.com",
+      numero_id: "00000000",
+      password: "hackeo123",
+    }),
+  });
+  assert.equal(documentoIncorrecto.status, 400);
+
+  // Restaurar la contraseña demo para el resto de la suite.
+  await api("/recover", {
+    method: "POST",
+    body: JSON.stringify({
+      email: "demo@saludya.com",
+      numero_id: "12345678",
+      password: "123456",
+    }),
+  });
+});
+
+test("el médico creado por el admin debe cambiar su contraseña temporal", async () => {
+  const primerIngreso = await login("paula@saludya.com", "claveMedico");
+  assert.equal(primerIngreso.body.user.debe_cambiar_password, true);
+
+  const actualIncorrecta = await api("/cambiar-password", {
+    method: "POST",
+    token: primerIngreso.body.token,
+    body: JSON.stringify({
+      password_actual: "equivocada",
+      password_nueva: "claveDefinitiva1",
+    }),
+  });
+  assert.equal(actualIncorrecta.status, 401);
+
+  const cambio = await api("/cambiar-password", {
+    method: "POST",
+    token: primerIngreso.body.token,
+    body: JSON.stringify({
+      password_actual: "claveMedico",
+      password_nueva: "claveDefinitiva1",
+    }),
+  });
+  assert.equal(cambio.status, 200);
+
+  const nuevoIngreso = await login("paula@saludya.com", "claveDefinitiva1");
+  assert.equal(nuevoIngreso.status, 200);
+  assert.equal(nuevoIngreso.body.user.debe_cambiar_password, false);
+});
+
+test("el médico gestiona su disponibilidad (crear, solapamiento, listar, eliminar)", async () => {
+  const fecha = proximoDiaHabil(35);
+
+  const creacion = await api("/disponibilidad", {
+    method: "POST",
+    token: tokenMedico,
+    body: JSON.stringify({ fecha, hora_inicio: "08:00", hora_fin: "10:00" }),
+  });
+  assert.equal(creacion.status, 201);
+  const bloqueId = creacion.body.bloque.id;
+
+  const solapado = await api("/disponibilidad", {
+    method: "POST",
+    token: tokenMedico,
+    body: JSON.stringify({ fecha, hora_inicio: "09:00", hora_fin: "11:00" }),
+  });
+  assert.equal(solapado.status, 409);
+
+  const listado = await api("/disponibilidad", { token: tokenMedico });
+  assert.equal(listado.status, 200);
+  assert.ok(listado.body.bloques.some((b) => b.id === bloqueId));
+
+  const comoPaciente = await api("/disponibilidad", {
+    method: "POST",
+    token: tokenPaciente,
+    body: JSON.stringify({ fecha, hora_inicio: "08:00", hora_fin: "10:00" }),
+  });
+  assert.equal(comoPaciente.status, 403);
+
+  const tokenPaula = (await login("paula@saludya.com", "claveDefinitiva1")).body.token;
+  const deOtroMedico = await api(`/disponibilidad/${bloqueId}`, {
+    method: "DELETE",
+    token: tokenPaula,
+  });
+  assert.equal(deOtroMedico.status, 403);
+
+  const eliminado = await api(`/disponibilidad/${bloqueId}`, {
+    method: "DELETE",
+    token: tokenMedico,
+  });
+  assert.equal(eliminado.status, 200);
+});
+
+test("el médico reprograma citas de su agenda; los choques dan 409", async () => {
+  const agenda = await api("/citas", { token: tokenMedico });
+  const cita = agenda.body.citas[0];
+
+  const reprogramada = await api(`/citas/${cita.id}/reprogramar`, {
+    method: "PATCH",
+    token: tokenMedico,
+    body: JSON.stringify({ fecha: FECHA_CITA_2, hora: "10:00" }),
+  });
+  assert.equal(reprogramada.status, 200);
+  assert.equal(reprogramada.body.cita.fecha, FECHA_CITA_2);
+  assert.equal(reprogramada.body.cita.hora, "10:00");
+
+  // Segunda cita del mismo médico para provocar el choque.
+  const segunda = await api("/citas", {
+    method: "POST",
+    token: tokenPaciente,
+    body: JSON.stringify({
+      medico_id: medicoDemoId,
+      especialidad: "Medicina general",
+      fecha: FECHA_CITA_2,
+      hora: "10:30",
+    }),
+  });
+  assert.equal(segunda.status, 201);
+
+  const choque = await api(`/citas/${segunda.body.id}/reprogramar`, {
+    method: "PATCH",
+    token: tokenMedico,
+    body: JSON.stringify({ fecha: FECHA_CITA_2, hora: "10:00" }),
+  });
+  assert.equal(choque.status, 409);
+
+  const tokenPaula = (await login("paula@saludya.com", "claveDefinitiva1")).body.token;
+  const deOtraAgenda = await api(`/citas/${cita.id}/reprogramar`, {
+    method: "PATCH",
+    token: tokenPaula,
+    body: JSON.stringify({ fecha: FECHA_CITA_2, hora: "16:00" }),
+  });
+  assert.equal(deOtraAgenda.status, 403);
+});
+
+test("PUT /medicos/:id actualiza los datos del médico (solo admin)", async () => {
+  const medicos = await api("/medicos", { token: tokenAdmin });
+  const paula = medicos.body.medicos.find((m) => m.email === "paula@saludya.com");
+
+  const actualizado = await api(`/medicos/${paula.id}`, {
+    method: "PUT",
+    token: tokenAdmin,
+    body: JSON.stringify({ especialidad: "Cardiología", telefono: "3017778899" }),
+  });
+
+  assert.equal(actualizado.status, 200);
+  assert.equal(actualizado.body.medico.especialidad, "Cardiología");
+  assert.equal(actualizado.body.medico.telefono, "3017778899");
+
+  const comoPaciente = await api(`/medicos/${paula.id}`, {
+    method: "PUT",
+    token: tokenPaciente,
+    body: JSON.stringify({ especialidad: "X" }),
+  });
+  assert.equal(comoPaciente.status, 403);
+
+  const inexistente = await api("/medicos/99999", {
+    method: "PUT",
+    token: tokenAdmin,
+    body: JSON.stringify({ especialidad: "X" }),
+  });
+  assert.equal(inexistente.status, 404);
+});
+
+test("DELETE /medicos/:id bloquea si hay citas y elimina si no las hay", async () => {
+  const medicos = await api("/medicos", { token: tokenAdmin });
+  const paula = medicos.body.medicos.find((m) => m.email === "paula@saludya.com");
+
+  // Paula tiene una cita (prueba RF-12): no se puede eliminar.
+  const conCitas = await api(`/medicos/${paula.id}`, {
+    method: "DELETE",
+    token: tokenAdmin,
+  });
+  assert.equal(conCitas.status, 409);
+
+  // Un médico recién creado, sin citas, sí se elimina.
+  const creado = await api("/medicos", {
+    method: "POST",
+    token: tokenAdmin,
+    body: JSON.stringify({
+      nombre: "Medico Borrable",
+      email: "borrable@saludya.com",
+      password: "temporal1",
+    }),
+  });
+  assert.equal(creado.status, 201);
+
+  const eliminado = await api(`/medicos/${creado.body.id}`, {
+    method: "DELETE",
+    token: tokenAdmin,
+  });
+  assert.equal(eliminado.status, 200);
+
+  const sesion = await login("borrable@saludya.com", "temporal1");
+  assert.equal(sesion.status, 401);
 });
 
 test("rutas desconocidas responden 404", async () => {

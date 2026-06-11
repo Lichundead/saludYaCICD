@@ -12,5 +12,10 @@
     "build": "pnpm --filter saludya-frontend build",
     "lint": "pnpm --filter saludya-frontend lint",
     "test": "pnpm -r test"
+  },
+  "pnpm": {
+    "overrides": {
+      "esbuild@<0.25.0": ">=0.25.0"
+    }
   }
 }

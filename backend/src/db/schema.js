@@ -12,6 +12,7 @@ const {
   serial,
   text,
   integer,
+  boolean,
   date,
   uniqueIndex,
   check,
@@ -35,6 +36,9 @@ const usuarios = pgTable(
     rol: text("rol").notNull().default("paciente"),
     especialidad: text("especialidad"),
     licencia: text("licencia"),
+    // Cuentas creadas por el admin con contraseña temporal: el usuario
+    // debe definir la suya en el primer ingreso.
+    debe_cambiar_password: boolean("debe_cambiar_password").notNull().default(false),
   },
   (tabla) => [
     check(
@@ -77,4 +81,29 @@ const citas = pgTable(
   ]
 );
 
-module.exports = { usuarios, citas };
+/**
+ * Tabla `disponibilidad`: bloques de atención que cada médico define
+ * (fecha + rango horario). Los slots de 30 minutos para agendar citas
+ * se derivan de estos bloques.
+ */
+const disponibilidad = pgTable(
+  "disponibilidad",
+  {
+    id: serial("id").primaryKey(),
+    medico_id: integer("medico_id")
+      .notNull()
+      .references(() => usuarios.id),
+    fecha: date("fecha", { mode: "string" }).notNull(),
+    hora_inicio: text("hora_inicio").notNull(),
+    hora_fin: text("hora_fin").notNull(),
+  },
+  (tabla) => [
+    uniqueIndex("disponibilidad_bloque_unico").on(
+      tabla.medico_id,
+      tabla.fecha,
+      tabla.hora_inicio
+    ),
+  ]
+);
+
+module.exports = { usuarios, citas, disponibilidad };

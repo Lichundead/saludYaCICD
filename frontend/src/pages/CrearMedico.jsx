@@ -1,6 +1,22 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Stethoscope } from "lucide-react";
 import { crearMedico } from "../services/api";
+import PasswordInput from "../components/PasswordInput";
+import "../styles/auth.css";
+
+const ESPECIALIDADES = [
+  "Medicina general",
+  "Cardiología",
+  "Dermatología",
+  "Ginecología",
+  "Neurología",
+  "Odontología",
+  "Oftalmología",
+  "Ortopedia",
+  "Pediatría",
+  "Psiquiatría",
+];
 
 function CrearMedico() {
   const navigate = useNavigate();
@@ -13,21 +29,25 @@ function CrearMedico() {
     tipoId: "",
     numeroId: "",
     licencia: "",
-    password: ""
+    password: "",
   });
+  const [error, setError] = useState("");
 
   const handleChange = (e) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value
-    });
+    setForm({ ...form, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
 
     if (!form.nombre || !form.correo || !form.password) {
-      alert("Nombre, correo y contraseña son requeridos");
+      setError("Nombre, correo y contraseña temporal son requeridos");
+      return;
+    }
+
+    if (form.password.length < 6) {
+      setError("La contraseña temporal debe tener al menos 6 caracteres");
       return;
     }
 
@@ -45,206 +65,147 @@ function CrearMedico() {
       });
 
       if (data.success) {
-        alert("Médico creado correctamente");
+        alert(
+          "Médico creado correctamente. Comparte la contraseña temporal: deberá cambiarla en su primer ingreso."
+        );
         navigate("/dashboard-admin");
       } else {
-        alert(data.message || "Error al crear el médico");
+        setError(data.message || "Error al crear el médico");
       }
-    } catch (error) {
-      console.error(error);
-      alert("Error conectando con el servidor");
+    } catch (err) {
+      console.error(err);
+      setError("Error conectando con el servidor");
     }
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
+    <div className="auth-container">
+      <div className="auth-card auth-card--wide">
+        <div className="auth-brand">
+          <div className="auth-brand__logo">
+            <Stethoscope size={26} />
+          </div>
+          <span className="auth-brand__name">SaludYa</span>
+        </div>
 
-        {/* LOGO */}
-        <div style={styles.logo}></div>
+        <h2 className="auth-title">Crear cuenta médico</h2>
+        <p className="auth-subtitle">
+          La cuenta se crea con una contraseña temporal que el médico deberá
+          cambiar en su primer ingreso
+        </p>
 
-        {/* TÍTULO */}
-        <h2 style={styles.title}>Crear cuenta médico</h2>
+        {error && <div className="auth-message auth-message--error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
-
-          <div style={styles.grid}>
-
-            <div style={styles.field}>
-              <label style={styles.label}>Nombre completo</label>
-              <input name="nombre" onChange={handleChange} style={styles.input} />
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>Correo electrónico</label>
-              <input name="correo" onChange={handleChange} style={styles.input} />
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>Número de teléfono</label>
-              <input name="telefono" onChange={handleChange} style={styles.input} />
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>Especialidad</label>
-              <select name="especialidad" onChange={handleChange} style={styles.input}>
-                <option>Seleccionar</option>
-                <option>Cardiología</option>
-                <option>Pediatría</option>
-                <option>Medicina general</option>
-              </select>
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>Tipo de identificación</label>
-              <select name="tipoId" onChange={handleChange} style={styles.input}>
-                <option>Seleccionar</option>
-                <option>CC</option>
-                <option>TI</option>
-              </select>
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>Número de identificación</label>
-              <input name="numeroId" onChange={handleChange} style={styles.input} />
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>Número de licencia médica</label>
-              <input name="licencia" onChange={handleChange} style={styles.input} />
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>Contraseña temporal</label>
+          <div className="auth-grid">
+            <div className="auth-span-2">
+              <label className="auth-label">Nombre completo</label>
               <input
-                type="password"
-                name="password"
+                name="nombre"
+                className="auth-input"
+                value={form.nombre}
                 onChange={handleChange}
-                style={styles.input}
               />
             </div>
 
+            <div className="auth-span-2">
+              <label className="auth-label">Correo electrónico</label>
+              <input
+                name="correo"
+                type="email"
+                className="auth-input"
+                value={form.correo}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
+              <label className="auth-label">Especialidad</label>
+              <select
+                name="especialidad"
+                className="auth-input"
+                value={form.especialidad}
+                onChange={handleChange}
+              >
+                <option value="">Selecciona</option>
+                {ESPECIALIDADES.map((esp) => (
+                  <option key={esp} value={esp}>
+                    {esp}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="auth-label">Número de licencia médica</label>
+              <input
+                name="licencia"
+                className="auth-input"
+                placeholder="RM-12345"
+                value={form.licencia}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
+              <label className="auth-label">Tipo de identificación</label>
+              <select
+                name="tipoId"
+                className="auth-input"
+                value={form.tipoId}
+                onChange={handleChange}
+              >
+                <option value="">Selecciona</option>
+                <option value="CC">Cédula de ciudadanía</option>
+                <option value="CE">Cédula de extranjería</option>
+                <option value="PA">Pasaporte</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="auth-label">Número de identificación</label>
+              <input
+                name="numeroId"
+                className="auth-input"
+                value={form.numeroId}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
+              <label className="auth-label">Teléfono</label>
+              <input
+                name="telefono"
+                className="auth-input"
+                value={form.telefono}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
+              <label className="auth-label">Contraseña temporal</label>
+              <PasswordInput
+                name="password"
+                placeholder="Mínimo 6 caracteres"
+                value={form.password}
+                onChange={handleChange}
+              />
+            </div>
           </div>
 
-          {/* TEXTO */}
-          <p style={styles.info}>
-            Comparte la contraseña temporal con el médico para su primer ingreso.
-          </p>
-
-          {/* BOTONES */}
-          <div style={styles.buttons}>
-            <button type="submit" style={styles.primary}>
-              Crear cuenta
-            </button>
-
-            <button
-              type="button"
-              style={styles.secondary}
-              onClick={() => navigate("/dashboard-admin")}
-            >
-              Cancelar
-            </button>
-          </div>
-
+          <button type="submit" className="auth-button">
+            Crear cuenta
+          </button>
         </form>
 
+        <p className="auth-footer">
+          <span className="auth-link" onClick={() => navigate("/dashboard-admin")}>
+            Cancelar y volver al panel
+          </span>
+        </p>
       </div>
     </div>
   );
 }
-
-const styles = {
-  container: {
-    height: "100vh",
-    background: "#E5E6E8",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center"
-  },
-
-  card: {
-    width: "520px",
-    background: "#fff",
-    padding: "30px",
-    borderRadius: "14px",
-    boxShadow: "0px 6px 20px rgba(0,0,0,0.08)"
-  },
-
-  logo: {
-    width: "55px",
-    height: "55px",
-    background: "#2563EB",
-    borderRadius: "14px",
-    margin: "0 auto 12px"
-  },
-
-  title: {
-    textAlign: "center",
-    marginBottom: "25px",
-    color: "#111827"
-  },
-
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "16px"
-  },
-
-  field: {
-    display: "flex",
-    flexDirection: "column"
-  },
-
-  label: {
-    fontSize: "12px",
-    color: "#6B7280",
-    marginBottom: "4px"
-  },
-
-  input: {
-    width: "100%",
-    height: "42px",
-    borderRadius: "10px",
-    border: "1px solid #D1D5DB",
-    padding: "0 12px",
-    boxSizing: "border-box",
-    fontSize: "14px",
-    outline: "none"
-  },
-
-  info: {
-    fontSize: "12px",
-    color: "#6B7280",
-    marginTop: "18px"
-  },
-
-  buttons: {
-    display: "flex",
-    gap: "12px",
-    marginTop: "20px"
-  },
-
-  primary: {
-    flex: 1,
-    background: "#2563EB",
-    color: "#fff",
-    border: "none",
-    height: "44px",
-    borderRadius: "10px",
-    cursor: "pointer",
-    fontWeight: "600"
-  },
-
-  secondary: {
-    flex: 1,
-    background: "#E5E7EB",
-    color: "#374151",
-    border: "none",
-    height: "44px",
-    borderRadius: "10px",
-    cursor: "pointer",
-    fontWeight: "500"
-  }
-};
 
 export default CrearMedico;

@@ -6,7 +6,7 @@
  * @module repositories/citas
  */
 
-const { eq } = require("drizzle-orm");
+const { and, eq, gte, ne } = require("drizzle-orm");
 const { alias } = require("drizzle-orm/pg-core");
 const { getDb } = require("../db/client");
 const { citas, usuarios } = require("../db/schema");
@@ -84,4 +84,59 @@ async function actualizarEstado(id, estado) {
   return cita;
 }
 
-module.exports = { crear, listarPorPacienteEmail, listarTodas, actualizarEstado };
+/**
+ * Busca una cita por id.
+ * @param {number} id
+ * @returns {Promise<object|undefined>}
+ */
+async function buscarPorId(id) {
+  const [cita] = await getDb().select().from(citas).where(eq(citas.id, id));
+  return cita;
+}
+
+/**
+ * Cambia fecha y hora de una cita (reprogramación). El índice único
+ * (medico, fecha, hora) protege contra choques de horario.
+ * @param {number} id
+ * @param {string} fecha
+ * @param {string} hora
+ * @returns {Promise<object|undefined>} La fila actualizada.
+ */
+async function reprogramar(id, fecha, hora) {
+  const [cita] = await getDb()
+    .update(citas)
+    .set({ fecha, hora })
+    .where(eq(citas.id, id))
+    .returning();
+  return cita;
+}
+
+/**
+ * Horas ya ocupadas de un médico desde una fecha (citas no rechazadas),
+ * para descontarlas de la disponibilidad.
+ * @param {number} medicoId
+ * @param {string} desdeFecha - YYYY-MM-DD inclusive.
+ * @returns {Promise<{fecha: string, hora: string}[]>}
+ */
+function horasOcupadas(medicoId, desdeFecha) {
+  return getDb()
+    .select({ fecha: citas.fecha, hora: citas.hora })
+    .from(citas)
+    .where(
+      and(
+        eq(citas.medico_id, medicoId),
+        gte(citas.fecha, desdeFecha),
+        ne(citas.estado, "rechazada")
+      )
+    );
+}
+
+module.exports = {
+  crear,
+  listarPorPacienteEmail,
+  listarTodas,
+  actualizarEstado,
+  buscarPorId,
+  reprogramar,
+  horasOcupadas,
+};

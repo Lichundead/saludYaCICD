@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { HeartPulse } from "lucide-react";
 import { registrarPaciente } from "../services/api";
+import PasswordInput from "../components/PasswordInput";
+import "../styles/auth.css";
+
+const TIPOS_SANGRE = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
 
 function RegisterPaciente() {
   const navigate = useNavigate();
@@ -12,179 +17,196 @@ function RegisterPaciente() {
     tipo_id: "",
     numero_id: "",
     rh: "",
-    password: ""
+    password: "",
+    confirmar: "",
   });
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
+  const [error, setError] = useState("");
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
-    setForm({
-      ...form,
-      [name]: value
-    });
+    setForm({ ...form, [name]: value });
   };
+
   const handleRegister = async (e) => {
     e.preventDefault();
+    setError("");
+
+    if (!form.nombre || !form.email || !form.password) {
+      setError("Nombre, correo y contraseña son requeridos");
+      return;
+    }
+
+    if (form.password.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    if (form.password !== form.confirmar) {
+      setError("Las contraseñas no coinciden");
+      return;
+    }
+
+    if (!aceptaTerminos) {
+      setError("Debes aceptar los términos y condiciones");
+      return;
+    }
 
     try {
-      const data = await registrarPaciente(form);
+      const { confirmar, ...datos } = form;
+      const data = await registrarPaciente(datos);
 
       if (data.success) {
-        alert("Cuenta creada");
+        alert("Cuenta creada. Ahora puedes iniciar sesión.");
         navigate("/");
       } else {
-        alert(data.message || "Error al registrar");
+        setError(data.message || "Error al registrar");
       }
-
-    } catch (error) {
-      console.error(error);
-      alert("Error servidor");
+    } catch (err) {
+      console.error(err);
+      setError("Error conectando con el servidor");
     }
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        
-        <div style={styles.logo}></div>
+    <div className="auth-container">
+      <div className="auth-card auth-card--wide">
+        <div className="auth-brand">
+          <div className="auth-brand__logo">
+            <HeartPulse size={26} />
+          </div>
+          <span className="auth-brand__name">SaludYa</span>
+        </div>
 
-        <h2 style={styles.title}>Crear cuenta</h2>
-        <p style={styles.subtitle}>Únete al sistema de gestión de citas</p>
+        <h2 className="auth-title">Crear cuenta</h2>
+        <p className="auth-subtitle">Únete al sistema de gestión de citas</p>
 
-        <form onSubmit={handleRegister} style={styles.grid}>
+        {error && <div className="auth-message auth-message--error">{error}</div>}
 
-          
-          <input
-            name="nombre"
-            placeholder="Nombre completo"
-            style={styles.input}
-            onChange={handleChange}
-          />
+        <form onSubmit={handleRegister}>
+          <div className="auth-grid">
+            <div className="auth-span-2">
+              <label className="auth-label">Nombre completo</label>
+              <input
+                name="nombre"
+                className="auth-input"
+                placeholder="Nombre completo"
+                value={form.nombre}
+                onChange={handleChange}
+              />
+            </div>
 
-          <input
-            name="email" 
-            placeholder="Correo electrónico"
-            style={styles.input}
-            onChange={handleChange}
-          />
+            <div className="auth-span-2">
+              <label className="auth-label">Correo electrónico</label>
+              <input
+                name="email"
+                type="email"
+                className="auth-input"
+                placeholder="correo@ejemplo.com"
+                value={form.email}
+                onChange={handleChange}
+              />
+            </div>
 
-          <input
-            name="telefono"
-            placeholder="Número de teléfono"
-            style={styles.input}
-            onChange={handleChange}
-          />
+            <div>
+              <label className="auth-label">Teléfono</label>
+              <input
+                name="telefono"
+                className="auth-input"
+                placeholder="3001234567"
+                value={form.telefono}
+                onChange={handleChange}
+              />
+            </div>
 
-          <select name="rh" style={styles.input} onChange={handleChange}>
-            <option>RH</option>
-            <option>O+</option>
-            <option>O-</option>
-          </select>
+            <div>
+              <label className="auth-label">Tipo de sangre (RH)</label>
+              <select
+                name="rh"
+                className="auth-input"
+                value={form.rh}
+                onChange={handleChange}
+              >
+                <option value="">Selecciona</option>
+                {TIPOS_SANGRE.map((tipo) => (
+                  <option key={tipo} value={tipo}>
+                    {tipo}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <select name="tipo_id" style={styles.input} onChange={handleChange}>
-            <option>Tipo de identificación</option>
-            <option>CC</option>
-            <option>TI</option>
-          </select>
+            <div>
+              <label className="auth-label">Tipo de identificación</label>
+              <select
+                name="tipo_id"
+                className="auth-input"
+                value={form.tipo_id}
+                onChange={handleChange}
+              >
+                <option value="">Selecciona</option>
+                <option value="CC">Cédula de ciudadanía</option>
+                <option value="TI">Tarjeta de identidad</option>
+                <option value="CE">Cédula de extranjería</option>
+                <option value="PA">Pasaporte</option>
+              </select>
+            </div>
 
-          <input
-            name="numero_id"
-            placeholder="Número de identificación"
-            style={styles.input}
-            onChange={handleChange}
-          />
+            <div>
+              <label className="auth-label">Número de identificación</label>
+              <input
+                name="numero_id"
+                className="auth-input"
+                placeholder="1090123456"
+                value={form.numero_id}
+                onChange={handleChange}
+              />
+            </div>
 
-          <input
-            name="password"
-            type="password"
-            placeholder="Contraseña"
-            style={styles.input}
-            onChange={handleChange}
-          />
+            <div>
+              <label className="auth-label">Contraseña</label>
+              <PasswordInput
+                name="password"
+                placeholder="Mínimo 6 caracteres"
+                value={form.password}
+                onChange={handleChange}
+              />
+            </div>
 
-          <input
-            placeholder="Confirmar contraseña"
-            style={styles.input}
-          />
-
-          <div style={styles.checkbox}>
-            <input type="checkbox" />
-            <span>Acepto los términos</span>
+            <div>
+              <label className="auth-label">Confirmar contraseña</label>
+              <PasswordInput
+                name="confirmar"
+                placeholder="Repite la contraseña"
+                value={form.confirmar}
+                onChange={handleChange}
+              />
+            </div>
           </div>
 
-          <button style={styles.button}>
+          <label className="auth-checkbox">
+            <input
+              type="checkbox"
+              checked={aceptaTerminos}
+              onChange={(e) => setAceptaTerminos(e.target.checked)}
+            />
+            <span>Acepto los términos y condiciones del servicio</span>
+          </label>
+
+          <button type="submit" className="auth-button" disabled={!aceptaTerminos}>
             Crear cuenta
           </button>
-
         </form>
+
+        <p className="auth-footer">
+          ¿Ya tienes cuenta?{" "}
+          <span className="auth-link" onClick={() => navigate("/")}>
+            Inicia sesión
+          </span>
+        </p>
       </div>
     </div>
   );
 }
-
-const styles = {
-  container: {
-    height: "100vh",
-    background: "#E5E6E8",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center"
-  },
-
-  card: {
-    width: "400px",
-    background: "#fff",
-    padding: "24px",
-    borderRadius: "16px",
-    boxShadow: "0px 6px 16px rgba(0,0,0,0.08)",
-    textAlign: "center"
-  },
-
-  logo: {
-    width: "56px",
-    height: "56px",
-    background: "#2F5FD0",
-    borderRadius: "12px",
-    margin: "0 auto 10px"
-  },
-
-  title: {
-    margin: "10px 0"
-  },
-
-  subtitle: {
-    fontSize: "13px",
-    color: "#6B7280",
-    marginBottom: "20px"
-  },
-
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "12px"
-  },
-
-  input: {
-    height: "40px",
-    borderRadius: "8px",
-    border: "1px solid #D1D5DB",
-    padding: "0 10px"
-  },
-
-  checkbox: {
-    gridColumn: "span 2",
-    fontSize: "12px"
-  },
-
-  button: {
-    gridColumn: "span 2",
-    height: "40px",
-    background: "#2F5FD0",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    cursor: "pointer"
-  }
-};
 
 export default RegisterPaciente;

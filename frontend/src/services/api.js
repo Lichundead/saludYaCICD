@@ -126,3 +126,66 @@ export function actualizarEstadoCita(id, estado) {
     body: JSON.stringify({ estado }),
   });
 }
+
+/** Reprograma una cita (admin/medico). Devuelve `{ success, cita }`. */
+export function reprogramarCita(id, fecha, hora) {
+  return request(`/citas/${id}/reprogramar`, {
+    method: "PATCH",
+    body: JSON.stringify({ fecha, hora }),
+  });
+}
+
+/** Restablece la contraseña verificando el documento. Devuelve `{ success }`. */
+export function recuperarPassword(datos) {
+  return request("/recover", {
+    method: "POST",
+    body: JSON.stringify(datos),
+  });
+}
+
+/** Cambia la contraseña del usuario autenticado. Devuelve `{ success }`. */
+export function cambiarPassword(passwordActual, passwordNueva) {
+  return request("/cambiar-password", {
+    method: "POST",
+    body: JSON.stringify({
+      password_actual: passwordActual,
+      password_nueva: passwordNueva,
+    }),
+  });
+}
+
+/** Slots libres de un médico: `{ success, slots: { fecha: [horas] } }`. */
+export function obtenerSlots(medicoId) {
+  return request(`/medicos/${medicoId}/slots`);
+}
+
+/** Bloques de disponibilidad del médico autenticado. */
+export function obtenerDisponibilidad() {
+  return request("/disponibilidad");
+}
+
+/** Crea un bloque de disponibilidad (medico). Devuelve `{ success, bloque }`. */
+export function crearDisponibilidad(datos) {
+  return request("/disponibilidad", {
+    method: "POST",
+    body: JSON.stringify(datos),
+  });
+}
+
+/** Elimina un bloque de disponibilidad propio. */
+export function eliminarDisponibilidad(id) {
+  return request(`/disponibilidad/${id}`, { method: "DELETE" });
+}
+
+/** Actualiza los datos de un médico (admin). Devuelve `{ success, medico }`. */
+export function actualizarMedico(id, datos) {
+  return request(`/medicos/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(datos),
+  });
+}
+
+/** Elimina una cuenta de médico (admin). */
+export function eliminarMedico(id) {
+  return request(`/medicos/${id}`, { method: "DELETE" });
+}

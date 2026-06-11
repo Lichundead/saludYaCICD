@@ -29,6 +29,7 @@ export default [
           varsIgnorePattern: "^[A-Z_]",
           argsIgnorePattern: "^[A-Z_]",
           destructuredArrayIgnorePattern: "^[A-Z_]",
+          ignoreRestSiblings: true,
         },
       ],
       "react-hooks/rules-of-hooks": "error",
