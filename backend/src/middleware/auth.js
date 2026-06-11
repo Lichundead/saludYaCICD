@@ -37,7 +37,8 @@ function requireAuth(req, res, next) {
 
 /**
  * Exige que el `:email` de la ruta sea el del usuario autenticado,
- * salvo que este tenga rol `admin` o `medico`.
+ * salvo que este tenga rol `admin` o `medico`. La comparación de
+ * correos no distingue mayúsculas.
  *
  * @param {express.Request} req
  * @param {express.Response} res
@@ -45,14 +46,33 @@ function requireAuth(req, res, next) {
  */
 function requireSelfOrStaff(req, res, next) {
   const esStaff = ["admin", "medico"].includes(req.user.rol);
+  const esPropio =
+    req.user.email.toLowerCase() === req.params.email.toLowerCase();
 
-  if (!esStaff && req.user.email !== req.params.email) {
+  if (!esStaff && !esPropio) {
     return res
       .status(403)
       .json({ success: false, message: "No tienes permiso para acceder a este recurso" });
   }
 
   next();
+}
+
+/**
+ * Exige que el usuario autenticado tenga alguno de los roles indicados.
+ *
+ * @param {...string} roles - Roles permitidos (ej. "admin", "medico").
+ * @returns {express.RequestHandler} Middleware que responde 403 si el rol no coincide.
+ */
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.rol)) {
+      return res
+        .status(403)
+        .json({ success: false, message: "No tienes permiso para realizar esta acción" });
+    }
+    next();
+  };
 }
 
 /**
@@ -69,4 +89,4 @@ function firmarToken(user) {
   );
 }
 
-module.exports = { requireAuth, requireSelfOrStaff, firmarToken };
+module.exports = { requireAuth, requireSelfOrStaff, requireRole, firmarToken };

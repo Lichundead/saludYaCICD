@@ -14,7 +14,6 @@ function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -32,7 +31,7 @@ function Login() {
         guardarSesion(data);
         navigate(RUTAS_POR_ROL[data.user.rol] || "/dashboard-paciente");
       } else {
-        alert("Correo o contraseña incorrectos");
+        alert(data.message || "Correo o contraseña incorrectos");
       }
 
     } catch (error) {
@@ -86,17 +85,6 @@ function Login() {
 
        
           <div style={styles.optionsRow}>
-            <div>
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={() => setRemember(!remember)}
-              />
-              <span style={styles.rememberText}>
-                Recordarme
-              </span>
-            </div>
-
             <span
               style={styles.link}
               onClick={() => navigate("/recover")}
@@ -184,13 +172,9 @@ const styles = {
 
   optionsRow: {
     display: "flex",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     alignItems: "center",
-    marginBottom: "16px"
-  },
-
-  rememberText: {
-    marginLeft: "5px",
+    marginBottom: "16px",
     fontSize: "12px"
   },
 

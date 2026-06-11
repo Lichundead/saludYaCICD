@@ -36,6 +36,11 @@ export function cerrarSesion() {
   localStorage.removeItem(USUARIO_KEY);
 }
 
+/** Actualiza el usuario guardado en la sesión (tras editar el perfil). */
+export function actualizarSesionUsuario(user) {
+  localStorage.setItem(USUARIO_KEY, JSON.stringify(user));
+}
+
 async function request(path, options = {}) {
   const headers = { "Content-Type": "application/json" };
 
@@ -43,6 +48,14 @@ async function request(path, options = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${API_URL}${path}`, { headers, ...options });
+
+  // Token expirado o inválido con sesión activa: cerrar sesión y volver al login.
+  if (res.status === 401 && token) {
+    cerrarSesion();
+    window.location.assign("/");
+    return { success: false, message: "Tu sesión expiró, inicia sesión de nuevo" };
+  }
+
   return res.json();
 }
 
@@ -78,4 +91,38 @@ export function obtenerCitas(email) {
 /** Obtiene un usuario por correo. Devuelve `{ success, user }`. */
 export function obtenerUsuario(email) {
   return request(`/usuario/${encodeURIComponent(email)}`);
+}
+
+/** Actualiza el perfil de un usuario. Devuelve `{ success, user }`. */
+export function actualizarUsuario(email, datos) {
+  return request(`/usuario/${encodeURIComponent(email)}`, {
+    method: "PUT",
+    body: JSON.stringify(datos),
+  });
+}
+
+/** Crea una cuenta de médico (solo admin). Devuelve `{ success, id }`. */
+export function crearMedico(datos) {
+  return request("/medicos", {
+    method: "POST",
+    body: JSON.stringify(datos),
+  });
+}
+
+/** Lista las cuentas de médicos (solo admin). Devuelve `{ success, medicos }`. */
+export function obtenerMedicos() {
+  return request("/medicos");
+}
+
+/** Lista todas las citas del sistema (admin/medico). Devuelve `{ success, citas }`. */
+export function obtenerTodasLasCitas() {
+  return request("/citas");
+}
+
+/** Cambia el estado de una cita (admin/medico). Devuelve `{ success, cita }`. */
+export function actualizarEstadoCita(id, estado) {
+  return request(`/citas/${id}/estado`, {
+    method: "PATCH",
+    body: JSON.stringify({ estado }),
+  });
 }

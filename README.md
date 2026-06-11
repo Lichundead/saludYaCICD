@@ -8,17 +8,20 @@ Monorepo gestionado con **pnpm workspaces**:
 
 ```
 saludYaCICD/
-├── backend/              # API REST (Express 5 + SQLite vía node:sqlite)
+├── backend/              # API REST (Express 5 + PostgreSQL vía Drizzle ORM)
+│   ├── drizzle/          # Migraciones SQL versionadas (generadas con drizzle-kit)
 │   ├── src/
 │   │   ├── app.js        # Aplicación Express (middleware, rutas, errores)
-│   │   ├── server.js     # Punto de entrada (levanta el servidor)
+│   │   ├── server.js     # Punto de entrada (migra, siembra y levanta el servidor)
 │   │   ├── config.js     # Configuración por variables de entorno
-│   │   ├── db.js         # Conexión SQLite, esquema y datos de demostración
-│   │   ├── passwords.js  # Hash de contraseñas (scrypt)
-│   │   ├── swagger.js    # Especificación OpenAPI
+│   │   ├── db/           # Esquema Drizzle, conexión (Postgres/PGlite) y seed
+│   │   ├── repositories/ # Único lugar con consultas a la base de datos
+│   │   ├── controllers/  # Lógica de cada endpoint
 │   │   ├── routes/       # Definición de endpoints + documentación
-│   │   └── controllers/  # Lógica de cada endpoint
-│   └── test/             # Pruebas de integración (node:test)
+│   │   ├── middleware/   # Autenticación JWT y autorización por rol
+│   │   ├── passwords.js  # Hash de contraseñas (scrypt)
+│   │   └── swagger.js    # Especificación OpenAPI
+│   └── test/             # Pruebas de integración (node:test + PGlite en memoria)
 └── frontend/             # SPA React 19 + Vite
     └── src/
         ├── pages/        # Vistas (login, dashboards, citas, etc.)
@@ -27,13 +30,13 @@ saludYaCICD/
 
 ## Tecnologías
 
-- **Frontend**: React 19, React Router 6, Vite, Vitest + Testing Library, ESLint 9
-- **Backend**: Node.js 22+, Express 5, SQLite (`node:sqlite`, sin dependencias nativas), autenticación JWT con roles, Swagger UI, Helmet y rate limiting
+- **Frontend**: React 19, React Router 6, Vite 8, Vitest 4 + Testing Library, ESLint 9
+- **Backend**: Node.js 24+, Express 5, PostgreSQL con Drizzle ORM (Neon en producción, PGlite embebido en desarrollo y pruebas), migraciones versionadas, autenticación JWT con roles, Swagger UI, Helmet y rate limiting
 - **CI/CD**: GitHub Actions (lint, pruebas y build en cada push/PR a `main`)
 
 ## Requisitos
 
-- Node.js 22 o superior (usa el módulo nativo `node:sqlite`)
+- Node.js 24 (LTS) o superior
 - pnpm 10 (`corepack enable`)
 
 ## Instalación
@@ -74,16 +77,37 @@ pnpm build   # Build de producción del frontend (frontend/dist)
 | -------------- | -------- | ------------------------------------------------- | ----------------------- |
 | `VITE_API_URL` | frontend | URL base de la API                                | `http://localhost:3001` |
 | `PORT`         | backend  | Puerto del servidor                               | `3001`                  |
-| `DB_PATH`      | backend  | Ruta del archivo SQLite (`:memory:` para pruebas) | `./saludya.db`          |
+| `DATABASE_URL` | backend  | URL de PostgreSQL (Neon en producción); si falta, se usa PGlite local | _(vacío)_ |
+| `DATABASE_SSL` | backend  | `false` para conectar a un Postgres local sin TLS | `true`                  |
+| `PGLITE_DIR`   | backend  | Directorio de datos de PGlite (`memory://` en pruebas) | `./pgdata`        |
 | `CORS_ORIGINS` | backend  | Orígenes permitidos, separados por coma           | localhost + despliegues |
 | `AUTH_RATE_LIMIT` | backend | Peticiones a `/login` y `/register` por IP cada 15 min | `20`              |
 | `JWT_SECRET`   | backend  | Secreto para firmar los tokens de sesión          | aleatorio por arranque  |
 | `JWT_EXPIRES_IN` | backend | Tiempo de vida de los tokens                      | `8h`                    |
 
+## Base de datos
+
+El esquema vive en `backend/src/db/schema.js` (Drizzle ORM) con integridad real:
+claves foráneas paciente/médico en `citas`, `CHECK` sobre roles y estados, y un
+índice único `(medico, fecha, hora)` que impide el doble agendamiento incluso
+ante peticiones concurrentes.
+
+- **Producción**: define `DATABASE_URL` con un PostgreSQL gestionado (p. ej. [Neon](https://neon.tech), gratuito).
+- **Desarrollo local**: sin configuración — PGlite (Postgres embebido) persiste en `backend/pgdata/`.
+- **Pruebas**: PGlite en memoria, mismo dialecto que producción.
+
+Las migraciones de `backend/drizzle/` se aplican automáticamente al arrancar.
+Tras cambiar el esquema, regenera las migraciones y haz commit del resultado:
+
+```bash
+pnpm --filter saludya-backend db:generate   # genera la migración SQL
+pnpm --filter saludya-backend db:seed       # inserta los usuarios demo (idempotente)
+```
+
 ## Despliegue
 
 - **Frontend**: Vercel (build con Vite, salida en `dist/`). Configurar `VITE_API_URL` en las variables de entorno del proyecto.
-- **Backend**: Render (`node server.js` o `npm start`). Definir `JWT_SECRET` para que las sesiones sobrevivan a los reinicios del servicio.
+- **Backend**: Render (`node server.js` o `npm start`). Definir `DATABASE_URL` (PostgreSQL de Neon) para que los datos sobrevivan a los deploys, y `JWT_SECRET` para que las sesiones sobrevivan a los reinicios.
 
 ## Autenticación
 

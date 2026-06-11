@@ -1,15 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { crearCita, obtenerSesion } from "../services/api";
+import { crearCita, obtenerMedicos, obtenerSesion } from "../services/api";
 
 function AgendarCita() {
   const navigate = useNavigate();
 
+  const [medicos, setMedicos] = useState([]);
   const [especialidad, setEspecialidad] = useState("");
-  const [medico, setMedico] = useState("");
+  const [medicoId, setMedicoId] = useState("");
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
   const [confirmado, setConfirmado] = useState(false);
+
+  useEffect(() => {
+    obtenerMedicos()
+      .then((data) => {
+        if (data.success) setMedicos(data.medicos);
+      })
+      .catch((err) => console.error(err));
+  }, []);
+
+  const medicoSeleccionado = medicos.find((m) => m.id === Number(medicoId));
 
   const handleSubmit = async () => {
   const usuario = obtenerSesion();
@@ -19,26 +30,24 @@ function AgendarCita() {
     return;
   }
 
-  const email = usuario.email;
-
-    if (!especialidad || !medico || !fecha || !hora) {
+    if (!especialidad || !medicoId || !fecha || !hora) {
       alert("Completa todos los campos");
       return;
     }
 
-    
-    const fechaSeleccionada = new Date(fecha);
-    const dia = fechaSeleccionada.getDay();
+    // Se interpreta la fecha como local: new Date("YYYY-MM-DD") la tomaría
+    // como UTC y en Colombia (UTC-5) correría el día de la semana.
+    const [anio, mes, diaMes] = fecha.split("-").map(Number);
+    const diaSemana = new Date(anio, mes - 1, diaMes).getDay();
 
-    if (dia === 0 || dia === 6) {
+    if (diaSemana === 0 || diaSemana === 6) {
       alert("No hay citas disponibles los fines de semana");
       return;
     }
 
     const nuevaCita = {
-      paciente_email: email,
+      medico_id: Number(medicoId),
       especialidad,
-      medico,
       fecha,
       hora
     };
@@ -49,7 +58,7 @@ function AgendarCita() {
       if (data.success) {
         setConfirmado(true);
       } else {
-        alert("Error al guardar cita");
+        alert(data.message || "Error al guardar cita");
       }
 
     } catch (error) {
@@ -83,12 +92,16 @@ function AgendarCita() {
          
           <select
             style={styles.input}
-            value={medico}
-            onChange={(e) => setMedico(e.target.value)}
+            value={medicoId}
+            onChange={(e) => setMedicoId(e.target.value)}
           >
             <option value="">Médico</option>
-            <option>Paula García</option>
-            <option>María Calderón</option>
+            {medicos.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nombre}
+                {m.especialidad ? ` — ${m.especialidad}` : ""}
+              </option>
+            ))}
           </select>
 
 
@@ -145,7 +158,8 @@ function AgendarCita() {
            
             <div style={styles.success}>
               Tu cita fue agendada para el <strong>{fecha}</strong> a las{" "}
-              <strong>{hora}</strong> con <strong>{medico}</strong>.
+              <strong>{hora}</strong> con{" "}
+              <strong>{medicoSeleccionado?.nombre}</strong>.
             </div>
 
             <button

@@ -3,6 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "packageManager": "pnpm@10.12.4",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev:frontend": "pnpm --filter saludya-frontend dev",
     "dev:backend": "pnpm --filter saludya-backend dev",

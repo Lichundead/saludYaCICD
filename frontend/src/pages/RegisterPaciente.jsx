@@ -33,7 +33,7 @@ function RegisterPaciente() {
         alert("Cuenta creada");
         navigate("/");
       } else {
-        alert("Error al registrar");
+        alert(data.message || "Error al registrar");
       }
 
     } catch (error) {

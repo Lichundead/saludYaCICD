@@ -36,10 +36,15 @@ useEffect(() => {
     .catch((err) => console.error(err));
 }, []);
   
-  const diasConCitas = citas.map(c => {
-    const fecha = new Date(c.fecha);
-    return fecha.getDate();
-  });
+  // Días del mes actual con cita. La fecha "YYYY-MM-DD" se parsea como texto:
+  // new Date() la interpretaría como UTC y marcaría el día anterior en UTC-5.
+  const hoy = new Date();
+  const diasConCitas = citas
+    .filter((c) => {
+      const [anio, mes] = String(c.fecha).split("-").map(Number);
+      return anio === hoy.getFullYear() && mes === hoy.getMonth() + 1;
+    })
+    .map((c) => Number(String(c.fecha).split("-")[2]));
 
   return (
     <div style={styles.container}>
@@ -136,8 +141,17 @@ useEffect(() => {
                   <p>{cita.especialidad}</p>
                   <p>{cita.fecha} - {cita.hora}</p>
 
-                  <span style={styles.badge}>
-                    Confirmada
+                  <span
+                    style={{
+                      ...styles.badge,
+                      ...(cita.estado === "confirmada"
+                        ? {}
+                        : { background: "#FEF3C7", color: "#92400E" }),
+                    }}
+                  >
+                    {cita.estado
+                      ? cita.estado.charAt(0).toUpperCase() + cita.estado.slice(1)
+                      : "Pendiente"}
                   </span>
                 </div>
               ))

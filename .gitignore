@@ -24,5 +24,6 @@ Thumbs.db
 .cache/
 .eslintcache
 
-# sqlite
+# bases de datos locales
 *.db
+pgdata/

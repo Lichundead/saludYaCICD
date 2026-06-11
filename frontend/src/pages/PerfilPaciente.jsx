@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { obtenerSesion } from "../services/api";
+import {
+  actualizarSesionUsuario,
+  actualizarUsuario,
+  obtenerSesion,
+  obtenerUsuario,
+} from "../services/api";
 
 function PerfilPaciente() {
   const navigate = useNavigate();
@@ -9,13 +14,22 @@ function PerfilPaciente() {
 
   const [datos, setDatos] = useState({
     nombre: "",
-    correo: "",
+    email: "",
     telefono: ""
   });
 
   useEffect(() => {
-    const user = obtenerSesion();
-    if (user) setDatos(user);
+    const sesion = obtenerSesion();
+    if (!sesion) return;
+
+    setDatos(sesion);
+
+    // Refresca el perfil desde el backend por si cambió en otra sesión.
+    obtenerUsuario(sesion.email)
+      .then((data) => {
+        if (data.success) setDatos(data.user);
+      })
+      .catch((err) => console.error(err));
   }, []);
 
   const handleChange = (e) => {
@@ -25,9 +39,24 @@ function PerfilPaciente() {
     });
   };
 
-  const guardarDatos = () => {
-    localStorage.setItem("usuario", JSON.stringify(datos));
-    setEditando(false);
+  const guardarDatos = async () => {
+    try {
+      const data = await actualizarUsuario(datos.email, {
+        nombre: datos.nombre,
+        telefono: datos.telefono,
+      });
+
+      if (data.success) {
+        setDatos(data.user);
+        actualizarSesionUsuario(data.user);
+        setEditando(false);
+      } else {
+        alert(data.message || "No se pudo guardar el perfil");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Error conectando con el servidor");
+    }
   };
 
   return (
@@ -64,23 +93,23 @@ function PerfilPaciente() {
           <div style={styles.formGrid}>
             <input
               name="nombre"
-              value={datos.nombre}
+              value={datos.nombre ?? ""}
               onChange={handleChange}
               disabled={!editando}
               style={styles.input}
             />
 
             <input
-              name="correo"
-              value={datos.correo}
-              onChange={handleChange}
-              disabled={!editando}
+              name="email"
+              value={datos.email ?? ""}
+              disabled
+              title="El correo identifica tu cuenta y no se puede cambiar"
               style={styles.input}
             />
 
             <input
               name="telefono"
-              value={datos.telefono}
+              value={datos.telefono ?? ""}
               onChange={handleChange}
               disabled={!editando}
               style={styles.input}

@@ -1,25 +1,19 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { cerrarSesion } from "../services/api";
+import { cerrarSesion, obtenerMedicos } from "../services/api";
 
 function DashboardAdmin() {
   const navigate = useNavigate();
 
-  const medicos = [
-    {
-      nombre: "Carlos Rodríguez",
-      correo: "medico.carlos@gmail.com",
-      especialidad: "Cardiología",
-      estado: "Activo",
-      telefono: "3001234567"
-    },
-    {
-      nombre: "Laura Gómez",
-      correo: "medico.laura@gmail.com",
-      especialidad: "Pediatría",
-      estado: "Inactivo",
-      telefono: "3019876543"
-    }
-  ];
+  const [medicos, setMedicos] = useState([]);
+
+  useEffect(() => {
+    obtenerMedicos()
+      .then((data) => {
+        if (data.success) setMedicos(data.medicos);
+      })
+      .catch((err) => console.error(err));
+  }, []);
 
   const fechaActual = new Date().toLocaleDateString("es-CO", {
     timeZone: "America/Bogota",
@@ -100,27 +94,27 @@ function DashboardAdmin() {
             </thead>
 
             <tbody>
-              {medicos.map((medico, index) => (
-                <tr key={index} style={styles.row}>
-                  <td>{medico.nombre}</td>
-                  <td>{medico.correo}</td>
-                  <td>{medico.especialidad}</td>
-
-                  <td>
-                    <span
-                      style={
-                        medico.estado === "Activo"
-                          ? styles.activeStatus
-                          : styles.inactiveStatus
-                      }
-                    >
-                      {medico.estado}
-                    </span>
+              {medicos.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ padding: "12px" }}>
+                    No hay médicos registrados aún.
                   </td>
-
-                  <td>{medico.telefono}</td>
                 </tr>
-              ))}
+              ) : (
+                medicos.map((medico) => (
+                  <tr key={medico.id} style={styles.row}>
+                    <td>{medico.nombre}</td>
+                    <td>{medico.email}</td>
+                    <td>{medico.especialidad || "—"}</td>
+
+                    <td>
+                      <span style={styles.activeStatus}>Activo</span>
+                    </td>
+
+                    <td>{medico.telefono || "—"}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

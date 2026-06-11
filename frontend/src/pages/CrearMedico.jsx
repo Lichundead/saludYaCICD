@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { crearMedico } from "../services/api";
 
 function CrearMedico() {
   const navigate = useNavigate();
@@ -22,10 +23,37 @@ function CrearMedico() {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    alert("Médico creado correctamente 😎");
-    navigate("/dashboard-admin");
+
+    if (!form.nombre || !form.correo || !form.password) {
+      alert("Nombre, correo y contraseña son requeridos");
+      return;
+    }
+
+    try {
+      // El backend usa email/tipo_id/numero_id; el formulario, correo/tipoId/numeroId.
+      const data = await crearMedico({
+        nombre: form.nombre,
+        email: form.correo,
+        password: form.password,
+        telefono: form.telefono,
+        tipo_id: form.tipoId,
+        numero_id: form.numeroId,
+        especialidad: form.especialidad,
+        licencia: form.licencia,
+      });
+
+      if (data.success) {
+        alert("Médico creado correctamente");
+        navigate("/dashboard-admin");
+      } else {
+        alert(data.message || "Error al crear el médico");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Error conectando con el servidor");
+    }
   };
 
   return (
@@ -100,7 +128,7 @@ function CrearMedico() {
 
           {/* TEXTO */}
           <p style={styles.info}>
-            Se enviará un correo electrónico con las credenciales de acceso.
+            Comparte la contraseña temporal con el médico para su primer ingreso.
           </p>
 
           {/* BOTONES */}

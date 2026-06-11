@@ -5,17 +5,89 @@
  */
 
 const { Router } = require("express");
-const { crear, listarPorEmail } = require("../controllers/citas.controller");
-const { requireAuth, requireSelfOrStaff } = require("../middleware/auth");
+const {
+  crear,
+  listarPorEmail,
+  listarTodas,
+  actualizarEstado,
+} = require("../controllers/citas.controller");
+const {
+  requireAuth,
+  requireSelfOrStaff,
+  requireRole,
+} = require("../middleware/auth");
 
 const router = Router();
 
 /**
  * @openapi
  * /citas:
+ *   get:
+ *     summary: Lista las citas del sistema
+ *     description: Requiere rol admin o medico. Un médico solo recibe las citas de su propia agenda; el admin las ve todas. Incluye el nombre del paciente.
+ *     tags: [Citas]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista completa de citas.
+ *       401:
+ *         description: Token ausente, inválido o expirado.
+ *       403:
+ *         description: Solo accesible para personal (admin o medico).
+ */
+router.get("/citas", requireAuth, requireRole("admin", "medico"), listarTodas);
+
+/**
+ * @openapi
+ * /citas/{id}/estado:
+ *   patch:
+ *     summary: Actualiza el estado de una cita
+ *     description: Requiere rol admin o medico. Estados permitidos - pendiente, confirmada, rechazada, atendida.
+ *     tags: [Citas]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [estado]
+ *             properties:
+ *               estado:
+ *                 type: string
+ *                 enum: [pendiente, confirmada, rechazada, atendida]
+ *                 example: confirmada
+ *     responses:
+ *       200:
+ *         description: Cita actualizada; devuelve la cita resultante.
+ *       400:
+ *         description: Estado inválido.
+ *       403:
+ *         description: Solo accesible para personal (admin o medico).
+ *       404:
+ *         description: Cita no encontrada.
+ */
+router.patch(
+  "/citas/:id/estado",
+  requireAuth,
+  requireRole("admin", "medico"),
+  actualizarEstado
+);
+
+/**
+ * @openapi
+ * /citas:
  *   post:
  *     summary: Crea una nueva cita médica
- *     description: Requiere autenticación. Los pacientes solo pueden agendar a su propio nombre (el correo se toma del token).
+ *     description: Requiere autenticación. Los pacientes solo pueden agendar a su propio nombre (el id se toma del token). El horario del médico no puede duplicarse.
  *     tags: [Citas]
  *     security:
  *       - bearerAuth: []
@@ -25,19 +97,20 @@ const router = Router();
  *         application/json:
  *           schema:
  *             type: object
- *             required: [especialidad, medico, fecha, hora]
+ *             required: [medico_id, especialidad, fecha, hora]
  *             properties:
  *               paciente_email:
  *                 type: string
  *                 format: email
  *                 description: Solo lo puede indicar el personal (admin/medico).
  *                 example: demo@saludya.com
+ *               medico_id:
+ *                 type: integer
+ *                 description: Id de un usuario con rol medico (ver GET /medicos).
+ *                 example: 3
  *               especialidad:
  *                 type: string
  *                 example: Medicina general
- *               medico:
- *                 type: string
- *                 example: Paula García
  *               fecha:
  *                 type: string
  *                 format: date
@@ -60,9 +133,11 @@ const router = Router();
  *                   type: integer
  *                   example: 7
  *       400:
- *         description: Faltan campos requeridos.
+ *         description: Faltan campos requeridos o el médico no existe.
  *       401:
  *         description: Token ausente, inválido o expirado.
+ *       409:
+ *         description: El médico ya tiene una cita en ese horario.
  */
 router.post("/citas", requireAuth, crear);
 

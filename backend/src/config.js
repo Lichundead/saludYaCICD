@@ -11,8 +11,17 @@ const config = {
   /** Puerto en el que escucha el servidor. Render inyecta `PORT` en producción. */
   port: process.env.PORT || 3001,
 
-  /** Ruta del archivo SQLite. Usar ":memory:" para pruebas. */
-  dbPath: process.env.DB_PATH || "./saludya.db",
+  /**
+   * URL de PostgreSQL (p. ej. Neon) para producción.
+   * Si no se define, se usa PGlite (Postgres embebido) en local.
+   */
+  databaseUrl: process.env.DATABASE_URL || "",
+
+  /** SSL para la conexión Postgres (Neon lo exige). Usar "false" con una BD local sin TLS. */
+  databaseSsl: process.env.DATABASE_SSL !== "false",
+
+  /** Directorio de datos de PGlite en desarrollo. Usar "memory://" en pruebas. */
+  pgliteDir: process.env.PGLITE_DIR || "./pgdata",
 
   /** Máximo de peticiones a /login y /register por IP cada 15 minutos. */
   authRateLimit: Number(process.env.AUTH_RATE_LIMIT) || 20,

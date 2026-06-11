@@ -4,13 +4,15 @@
  * @module controllers/auth
  */
 
-const db = require("../db");
+const usuariosRepo = require("../repositories/usuarios.repo");
 const { hashPassword, verifyPassword, isHashed } = require("../passwords");
-const { sinPassword } = require("./usuarios.controller");
+const {
+  EMAIL_REGEX,
+  normalizarEmail,
+  sinPassword,
+  esViolacionUnicidad,
+} = require("../utils");
 const { firmarToken } = require("../middleware/auth");
-
-/** Validación básica de formato de correo electrónico. */
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Autentica a un usuario validando su correo y contraseña.
@@ -21,9 +23,10 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * @param {express.Response} res - Respuesta JSON.
  * @param {express.NextFunction} next - Pasa errores al middleware de errores.
  */
-function login(req, res, next) {
+async function login(req, res, next) {
   try {
-    const { email, password } = req.body;
+    const { password } = req.body;
+    const email = normalizarEmail(req.body.email);
 
     if (!email || !password) {
       return res
@@ -31,19 +34,14 @@ function login(req, res, next) {
         .json({ success: false, message: "Correo y contraseña son requeridos" });
     }
 
-    const user = db
-      .prepare(`SELECT * FROM usuarios WHERE email = ?`)
-      .get(email);
+    const user = await usuariosRepo.buscarPorEmail(email);
 
     if (!user || !verifyPassword(password, user.password)) {
       return res.status(401).json({ success: false });
     }
 
     if (!isHashed(user.password)) {
-      db.prepare(`UPDATE usuarios SET password = ? WHERE id = ?`).run(
-        hashPassword(password),
-        user.id
-      );
+      await usuariosRepo.actualizarPassword(user.id, hashPassword(password));
     }
 
     res.json({ success: true, user: sinPassword(user), token: firmarToken(user) });
@@ -53,17 +51,17 @@ function login(req, res, next) {
 }
 
 /**
- * Registra un nuevo usuario (paciente) en la tabla `usuarios`.
- * La contraseña se almacena hasheada con scrypt.
+ * Registra un nuevo usuario (paciente). La contraseña se almacena hasheada
+ * con scrypt y el rol nunca se acepta del cliente.
  *
  * @param {express.Request} req - `req.body` contiene los datos del usuario.
  * @param {express.Response} res - Respuesta JSON.
  * @param {express.NextFunction} next - Pasa errores al middleware de errores.
  */
-function register(req, res, next) {
+async function register(req, res, next) {
   try {
-    const { nombre, email, password, telefono, tipo_id, numero_id, rh } =
-      req.body;
+    const { nombre, password, telefono, tipo_id, numero_id, rh } = req.body;
+    const email = normalizarEmail(req.body.email);
 
     if (!nombre || !email || !password) {
       return res.status(400).json({
@@ -78,28 +76,26 @@ function register(req, res, next) {
         .json({ success: false, message: "El correo no tiene un formato válido" });
     }
 
-    const existente = db
-      .prepare(`SELECT id FROM usuarios WHERE email = ?`)
-      .get(email);
+    const usuario = await usuariosRepo.crear({
+      nombre,
+      email,
+      password: hashPassword(password),
+      telefono: telefono ?? null,
+      tipo_id: tipo_id ?? null,
+      numero_id: numero_id ?? null,
+      rh: rh ?? null,
+      // El rol siempre es "paciente": nunca se acepta del cliente para evitar
+      // que un registro público se autoasigne privilegios.
+      rol: "paciente",
+    });
 
-    if (existente) {
+    res.status(201).json({ success: true, id: usuario.id });
+  } catch (error) {
+    if (esViolacionUnicidad(error)) {
       return res
         .status(409)
         .json({ success: false, message: "El correo ya está registrado" });
     }
-
-    // El rol siempre es "paciente": nunca se acepta del cliente para evitar
-    // que un registro público se autoasigne privilegios.
-    const result = db
-      .prepare(
-        `INSERT INTO usuarios
-         (nombre, email, password, telefono, tipo_id, numero_id, rh, rol)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'paciente')`
-      )
-      .run(nombre, email, hashPassword(password), telefono, tipo_id, numero_id, rh);
-
-    res.status(201).json({ success: true, id: result.lastInsertRowid });
-  } catch (error) {
     next(error);
   }
 }

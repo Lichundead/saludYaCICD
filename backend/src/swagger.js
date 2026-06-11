@@ -44,8 +44,15 @@ const options = {
         name: "Autenticación",
         description: "Inicio de sesión y registro de usuarios",
       },
-      { name: "Usuarios", description: "Consulta de datos de usuarios" },
-      { name: "Citas", description: "Creación y consulta de citas médicas" },
+      {
+        name: "Usuarios",
+        description: "Consulta y actualización de usuarios y médicos",
+      },
+      {
+        name: "Citas",
+        description: "Creación, consulta y gestión de citas médicas",
+      },
+      { name: "Salud", description: "Estado de la API" },
     ],
     components: {
       securitySchemes: {
@@ -80,20 +87,31 @@ const options = {
             },
           },
         },
-        /** Esquema de una cita médica almacenada en la tabla `citas`. */
+        /**
+         * Esquema de una cita médica. Las lecturas incluyen los datos del
+         * paciente y el nombre del médico resueltos por JOIN.
+         */
         Cita: {
           type: "object",
           properties: {
             id: { type: "integer", example: 1 },
+            paciente_id: { type: "integer", example: 1 },
+            medico_id: { type: "integer", example: 3 },
             paciente_email: {
               type: "string",
               format: "email",
               example: "demo@saludya.com",
             },
+            paciente_nombre: { type: "string", example: "Paciente Demo" },
+            medico: { type: "string", example: "Medico Demo" },
             especialidad: { type: "string", example: "Medicina general" },
-            medico: { type: "string", example: "Paula García" },
             fecha: { type: "string", format: "date", example: "2026-06-15" },
             hora: { type: "string", example: "09:30" },
+            estado: {
+              type: "string",
+              enum: ["pendiente", "confirmada", "rechazada", "atendida"],
+              example: "pendiente",
+            },
           },
         },
       },

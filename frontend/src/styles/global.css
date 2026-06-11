@@ -1,12 +1,164 @@
-:root{
-  --blue: #2D5BFF;
-  --gray: #F5F6FA;
-  --black: #1E1E1E;
-  --white: #FFFFFF;
+/* ── Reset ── */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-body{
-  margin:0;
-  font-family: Arial, sans-serif;
-  background: var(--gray);
+/* ── Design system de SaludYa ── */
+:root {
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-soft: #eff6ff;
+  --color-bg: #e5e6e8;
+  --color-white: #ffffff;
+  --color-text: #111827;
+  --color-text-muted: #6b7280;
+  --color-border: #e5e7eb;
+  --color-danger: #dc2626;
+  --color-success: #16a34a;
+  --color-success-hover: #15803d;
+  --color-warning: #d97706;
+  --color-sidebar-bg: #f3f4f6;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── Badges de estado de cita ── */
+.status-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.status--pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+.status--confirmed {
+  background: #dcfce7;
+  color: #166534;
+}
+.status--rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.status--done {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+/* ── Botones compartidos ── */
+.btn-confirm,
+.btn-reject {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  border: none;
+}
+.btn-confirm {
+  background: var(--color-success);
+  color: var(--color-white);
+}
+.btn-confirm:hover {
+  background: var(--color-success-hover);
+}
+.btn-reject {
+  background: transparent;
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+}
+.btn-reject:hover {
+  background: rgba(220, 38, 38, 0.07);
+}
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+/* ── Pestañas de filtro por estado ── */
+.filter-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.filter-tab {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1.5px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.filter-tab[data-filter="todas"] {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.filter-tab[data-filter="pendiente"] {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+.filter-tab[data-filter="confirmada"] {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+.filter-tab[data-filter="rechazada"] {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+.filter-tab[data-filter="atendida"] {
+  border-color: #4f46e5;
+  color: #4f46e5;
+}
+.filter-tab--active[data-filter="todas"] {
+  background: var(--color-primary);
+  color: var(--color-white);
+}
+.filter-tab--active[data-filter="pendiente"] {
+  background: var(--color-warning);
+  color: var(--color-white);
+}
+.filter-tab--active[data-filter="confirmada"] {
+  background: var(--color-success);
+  color: var(--color-white);
+}
+.filter-tab--active[data-filter="rechazada"] {
+  background: var(--color-danger);
+  color: var(--color-white);
+}
+.filter-tab--active[data-filter="atendida"] {
+  background: #4f46e5;
+  color: var(--color-white);
+}
+
+/* ── Estado vacío ── */
+.empty-state {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--color-text-muted);
+  font-size: 13px;
 }

@@ -6,15 +6,26 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "db:generate": "drizzle-kit generate",
+    "db:seed": "node src/db/seed.js"
+  },
+  "engines": {
+    "node": ">=24"
   },
   "dependencies": {
+    "@electric-sql/pglite": "0.5.1",
     "cors": "^2.8.5",
+    "drizzle-orm": "0.45.2",
     "express": "^5.1.0",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "pg": "8.21.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.10"
   }
 }

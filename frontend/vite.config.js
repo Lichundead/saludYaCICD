@@ -1,4 +1,5 @@
-import { defineConfig } from "vite";
+// defineConfig de vitest/config acepta también la sección `test`.
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 // https://vite.dev/config/
