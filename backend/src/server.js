@@ -1,8 +1,8 @@
 /**
  * @file server.js
  * @description Punto de entrada de la API REST de SaludYa. Valida la
- * configuración, inicializa la base de datos (migraciones + datos demo),
- * levanta el servidor y gestiona el apagado ordenado.
+ * configuración, inicializa la base de datos (aplica migraciones), levanta
+ * el servidor y gestiona el apagado ordenado.
  * @module server
  */
 
@@ -10,15 +10,13 @@ const app = require("./app");
 const config = require("./config");
 const logger = require("./logger");
 const { initDb, closeDb } = require("./db/client");
-const { seedDemoData } = require("./db/seed");
 const { validarConfigProduccion } = require("./config");
 
 async function arrancar() {
   // Falla rápido si faltan secretos críticos en producción.
   validarConfigProduccion();
 
-  const db = await initDb();
-  await seedDemoData(db);
+  await initDb();
 
   const server = app.listen(config.port, () => {
     logger.info(

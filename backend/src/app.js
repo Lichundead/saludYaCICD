@@ -31,11 +31,30 @@ app.set("trust proxy", 1);
 /** No revelar el motor del servidor. */
 app.disable("x-powered-by");
 
-/** Logging estructurado de cada petición (se omite /health para no saturar). */
+/** Enmascara correos (PII) que viajan en la URL para no registrarlos. */
+const EMAIL_EN_URL = /[^/\s@]+@[^/\s@]+\.[^/\s@]+/g;
+function urlSinPII(url) {
+  return typeof url === "string" ? url.replace(EMAIL_EN_URL, "***") : url;
+}
+
+/**
+ * Logging estructurado de cada petición. Serializadores compactos: solo
+ * método, URL (con correos enmascarados) y código de estado. No se registran
+ * cuerpos ni cabeceras, así no se filtran contraseñas, tokens ni datos
+ * personales.
+ */
 app.use(
   pinoHttp({
     logger,
     autoLogging: { ignore: (req) => req.url === "/health" },
+    serializers: {
+      req(req) {
+        return { method: req.method, url: urlSinPII(req.url) };
+      },
+      res(res) {
+        return { statusCode: res.statusCode };
+      },
+    },
   })
 );
 

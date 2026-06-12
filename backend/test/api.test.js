@@ -17,7 +17,8 @@ const assert = require("node:assert/strict");
 
 const app = require("../src/app");
 const { initDb } = require("../src/db/client");
-const { seedDemoData } = require("../src/db/seed");
+const { outbox } = require("../src/mailer");
+const { seedDatosPrueba } = require("./fixtures");
 
 let server;
 let baseUrl;
@@ -61,7 +62,7 @@ const FECHA_CITA_2 = proximoDiaHabil(4);
 
 before(async () => {
   const db = await initDb();
-  await seedDemoData(db);
+  await seedDatosPrueba(db);
 
   server = app.listen(0);
   await new Promise((resolve) => server.once("listening", resolve));
@@ -517,39 +518,52 @@ test("PATCH /citas/:id/estado valida estado y existencia, y rechaza pacientes", 
   assert.equal(comoPaciente.status, 403);
 });
 
-test("POST /recover restablece la contraseña verificando el documento", async () => {
+test("POST /recover envía una contraseña temporal por correo (solo el correo)", async () => {
+  outbox.length = 0;
+
   const exito = await api("/recover", {
     method: "POST",
-    body: JSON.stringify({
-      email: "demo@saludya.com",
-      numero_id: "12345678",
-      password: "recuperada1",
-    }),
+    body: JSON.stringify({ email: "demo@saludya.com" }),
   });
   assert.equal(exito.status, 200);
+  assert.equal(exito.body.success, true);
 
-  const sesion = await login("demo@saludya.com", "recuperada1");
-  assert.equal(sesion.status, 200);
+  // El correo se capturó en la bandeja de prueba.
+  const correo = outbox.find((m) => m.to === "demo@saludya.com");
+  assert.ok(correo, "debió enviarse un correo a la cuenta");
+  const temporal = correo.text.match(/temporal es: (\S+)/)?.[1];
+  assert.ok(temporal, "el correo debe incluir la contraseña temporal");
 
-  const documentoIncorrecto = await api("/recover", {
+  // La contraseña anterior deja de funcionar.
+  const conClaveVieja = await login("demo@saludya.com", "123456");
+  assert.equal(conClaveVieja.status, 401);
+
+  // Con la temporal entra y queda marcada para cambio obligatorio.
+  const conTemporal = await login("demo@saludya.com", temporal);
+  assert.equal(conTemporal.status, 200);
+  assert.equal(conTemporal.body.user.debe_cambiar_password, true);
+
+  // Correo con formato inválido → 400.
+  const malo = await api("/recover", {
     method: "POST",
-    body: JSON.stringify({
-      email: "demo@saludya.com",
-      numero_id: "00000000",
-      password: "hackeo123",
-    }),
+    body: JSON.stringify({ email: "no-es-correo" }),
   });
-  assert.equal(documentoIncorrecto.status, 400);
+  assert.equal(malo.status, 400);
 
-  // Restaurar la contraseña demo para el resto de la suite.
-  await api("/recover", {
+  // Correo inexistente → respuesta genérica 200 (no revela existencia).
+  const inexistente = await api("/recover", {
     method: "POST",
-    body: JSON.stringify({
-      email: "demo@saludya.com",
-      numero_id: "12345678",
-      password: "123456",
-    }),
+    body: JSON.stringify({ email: "noexiste@saludya.com" }),
   });
+  assert.equal(inexistente.status, 200);
+
+  // Restaurar la contraseña demo a "123456" para el resto de la suite.
+  const cambio = await api("/cambiar-password", {
+    method: "POST",
+    token: conTemporal.body.token,
+    body: JSON.stringify({ password_actual: temporal, password_nueva: "123456" }),
+  });
+  assert.equal(cambio.status, 200);
 });
 
 test("el médico creado por el admin debe cambiar su contraseña temporal", async () => {

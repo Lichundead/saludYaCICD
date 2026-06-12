@@ -4,11 +4,11 @@
   "description": "API REST de SaludYa para la gestión de citas médicas",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "dev": "node --watch --env-file-if-exists=.env src/server.js",
     "test": "node --test",
     "db:generate": "drizzle-kit generate",
-    "db:seed": "node src/db/seed.js"
+    "db:create-admin": "node --env-file-if-exists=.env src/db/create-admin.js"
   },
   "engines": {
     "node": ">=24"

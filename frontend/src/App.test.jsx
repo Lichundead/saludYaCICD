@@ -42,6 +42,25 @@ test("el dashboard del médico muestra estadísticas, solicitudes y agenda", asy
   ).toBeInTheDocument();
 });
 
+test("el perfil del paciente usa el panel y muestra sus datos", async () => {
+  localStorage.setItem("token", "token-de-prueba");
+  localStorage.setItem(
+    "usuario",
+    JSON.stringify({ nombre: "Paciente Demo", email: "demo@saludya.com", rol: "paciente" })
+  );
+  window.history.pushState({}, "", "/perfil");
+
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "Mi perfil" })).toBeInTheDocument();
+  expect(screen.getByText("Datos personales")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("demo@saludya.com")).toBeInTheDocument();
+  // El enlace para cambiar contraseña integra el perfil con ese flujo.
+  expect(
+    screen.getByRole("button", { name: /Cambiar contraseña/i })
+  ).toBeInTheDocument();
+});
+
 test("permite entrar a una ruta protegida con sesión iniciada", async () => {
   localStorage.setItem("token", "token-de-prueba");
   localStorage.setItem(

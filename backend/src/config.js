@@ -60,11 +60,23 @@ const config = {
   /** Orígenes permitidos por CORS (separados por coma en la variable de entorno). */
   corsOrigins: process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(",").map((origin) => origin.trim())
-    : [
-        "http://localhost:3000",
-        "https://salud-ya-cicd.vercel.app",
-        "https://saludyacicd-54ta.onrender.com",
-      ],
+    : [],
+
+  /** Token de la API de Mailtrap. Si está vacío, el envío de correos es un no-op. */
+  mailtrapToken: process.env.MAILTRAP_API_TOKEN || "",
+
+  /**
+   * Id del inbox de Mailtrap. Si se define, se usa el endpoint de pruebas
+   * (sandbox); si no, el de envío real.
+   */
+  mailtrapInboxId: process.env.MAILTRAP_INBOX_ID || "",
+
+  /**
+   * Remitente de los correos, en formato "Nombre <correo>". Con el dominio
+   * demo de Mailtrap usa "<algo>@demomailtrap.co"; con un dominio propio
+   * verificado, tu dirección.
+   */
+  mailFrom: process.env.MAIL_FROM || "SaludYa <hello@demomailtrap.co>",
 };
 
 /**
@@ -83,7 +95,7 @@ function validarConfigProduccion() {
 
   if (faltantes.length > 0) {
     throw new Error(
-      `Variables de entorno obligatorias en producción ausentes: ${faltantes.join(", ")}`
+      `Variables de entorno obligatorias en producción ausentes: ${faltantes.join(", ")}`,
     );
   }
 }

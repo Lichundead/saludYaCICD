@@ -60,4 +60,15 @@ function verifyPassword(password, stored) {
   );
 }
 
-module.exports = { hashPassword, verifyPassword, isHashed };
+/**
+ * Genera una contraseña temporal aleatoria y legible (para el restablecimiento
+ * por correo). Combina mayúsculas, minúsculas y dígitos.
+ *
+ * @returns {string} Contraseña temporal de 10 caracteres.
+ */
+function generarPasswordTemporal() {
+  // base64url evita caracteres ambiguos; recorta a 10 y antepone para asegurar longitud.
+  return randomBytes(9).toString("base64url").slice(0, 10);
+}
+
+module.exports = { hashPassword, verifyPassword, isHashed, generarPasswordTemporal };

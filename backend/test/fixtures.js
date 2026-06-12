@@ -1,24 +1,21 @@
 /**
- * @file seed.js
- * @description Datos de demostración (un usuario por rol). Idempotente:
- * usa ON CONFLICT DO NOTHING sobre el correo, así que puede ejecutarse
- * en cada arranque sin duplicar registros.
- *
- * Ejecutable también como script: `pnpm db:seed`.
- * @module db/seed
+ * @file fixtures.js
+ * @description Datos de prueba para la suite de integración (un usuario por
+ * rol + disponibilidad del médico). Solo se usa en las pruebas: el producto
+ * no incluye cuentas demo.
  */
 
 const { eq } = require("drizzle-orm");
-const { hashPassword } = require("../passwords");
-const { usuarios, disponibilidad } = require("./schema");
+const { hashPassword } = require("../src/passwords");
+const { usuarios, disponibilidad } = require("../src/db/schema");
 
 /**
- * Inserta los usuarios de demostración si no existen, y bloques de
- * disponibilidad para el médico demo (días hábiles de los próximos 30 días).
+ * Inserta los usuarios de prueba (idempotente) y bloques de disponibilidad
+ * para el médico de prueba en los días hábiles de los próximos 30 días.
  * @param {object} db - Instancia de Drizzle.
  */
-async function seedDemoData(db) {
-  const demoPassword = hashPassword("123456");
+async function seedDatosPrueba(db) {
+  const clave = hashPassword("123456");
 
   await db
     .insert(usuarios)
@@ -26,7 +23,7 @@ async function seedDemoData(db) {
       {
         nombre: "Paciente Demo",
         email: "demo@saludya.com",
-        password: demoPassword,
+        password: clave,
         telefono: "3000000000",
         tipo_id: "CC",
         numero_id: "12345678",
@@ -36,7 +33,7 @@ async function seedDemoData(db) {
       {
         nombre: "Administrador Demo",
         email: "admin@saludya.com",
-        password: demoPassword,
+        password: clave,
         telefono: "3000000001",
         tipo_id: "CC",
         numero_id: "11111111",
@@ -46,7 +43,7 @@ async function seedDemoData(db) {
       {
         nombre: "Medico Demo",
         email: "medico@saludya.com",
-        password: demoPassword,
+        password: clave,
         telefono: "3000000002",
         tipo_id: "CC",
         numero_id: "22222222",
@@ -58,14 +55,12 @@ async function seedDemoData(db) {
     ])
     .onConflictDoNothing({ target: usuarios.email });
 
-  // Disponibilidad demo: días hábiles de los próximos 30 días,
-  // mañana (08:00-12:00) y tarde (14:00-17:00).
-  const [medicoDemo] = await db
+  const [medico] = await db
     .select()
     .from(usuarios)
     .where(eq(usuarios.email, "medico@saludya.com"));
 
-  if (medicoDemo) {
+  if (medico) {
     const bloques = [];
     const hoy = new Date();
 
@@ -76,8 +71,8 @@ async function seedDemoData(db) {
 
       const fecha = `${dia.getFullYear()}-${String(dia.getMonth() + 1).padStart(2, "0")}-${String(dia.getDate()).padStart(2, "0")}`;
       bloques.push(
-        { medico_id: medicoDemo.id, fecha, hora_inicio: "08:00", hora_fin: "12:00" },
-        { medico_id: medicoDemo.id, fecha, hora_inicio: "14:00", hora_fin: "17:00" }
+        { medico_id: medico.id, fecha, hora_inicio: "08:00", hora_fin: "12:00" },
+        { medico_id: medico.id, fecha, hora_inicio: "14:00", hora_fin: "17:00" }
       );
     }
 
@@ -90,21 +85,4 @@ async function seedDemoData(db) {
   }
 }
 
-module.exports = { seedDemoData };
-
-// Permite ejecutar el seed directamente: `pnpm db:seed`
-if (require.main === module) {
-  const { initDb, closeDb } = require("./client");
-
-  initDb()
-    .then(seedDemoData)
-    .then(async () => {
-      console.log("Datos de demostración insertados");
-      await closeDb();
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error(error);
-      process.exit(1);
-    });
-}
+module.exports = { seedDatosPrueba };

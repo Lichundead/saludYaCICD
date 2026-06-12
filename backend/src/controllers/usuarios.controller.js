@@ -8,6 +8,8 @@
 const usuariosRepo = require("../repositories/usuarios.repo");
 const disponibilidadRepo = require("../repositories/disponibilidad.repo");
 const { hashPassword } = require("../passwords");
+const { enviarCorreo } = require("../mailer");
+const logger = require("../logger");
 const {
   EMAIL_REGEX,
   normalizarEmail,
@@ -156,6 +158,19 @@ async function crearMedico(req, res, next) {
     });
 
     res.status(201).json({ success: true, id: medico.id });
+
+    // Best-effort: si el correo está configurado, envía las credenciales
+    // temporales al médico. No bloquea ni afecta la respuesta.
+    enviarCorreo({
+      to: email,
+      subject: "Tu cuenta de SaludYa",
+      text:
+        `Hola ${nombre},\n\n` +
+        `Se creó tu cuenta de médico en SaludYa.\n` +
+        `Correo: ${email}\n` +
+        `Contraseña temporal: ${password}\n\n` +
+        `Por seguridad, deberás cambiarla en tu primer ingreso.`,
+    }).catch((err) => logger.error({ err }, "No se pudo enviar el correo de credenciales"));
   } catch (error) {
     if (esViolacionUnicidad(error)) {
       return res

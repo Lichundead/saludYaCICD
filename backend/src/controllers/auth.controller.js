@@ -5,7 +5,12 @@
  */
 
 const usuariosRepo = require("../repositories/usuarios.repo");
-const { hashPassword, verifyPassword, isHashed } = require("../passwords");
+const {
+  hashPassword,
+  verifyPassword,
+  isHashed,
+  generarPasswordTemporal,
+} = require("../passwords");
 const {
   EMAIL_REGEX,
   normalizarEmail,
@@ -13,6 +18,8 @@ const {
   esViolacionUnicidad,
 } = require("../utils");
 const { firmarToken } = require("../middleware/auth");
+const { enviarCorreo, correoHabilitado } = require("../mailer");
+const logger = require("../logger");
 
 /**
  * Autentica a un usuario validando su correo y contraseña.
@@ -101,46 +108,75 @@ async function register(req, res, next) {
 }
 
 /**
- * Restablece la contraseña verificando la identidad con el correo y el
- * número de identificación registrado (no hay servicio de correo, así que
- * la verificación se hace contra un dato que solo el titular conoce).
+ * Restablecimiento de contraseña por correo. Solo requiere el correo: si
+ * corresponde a una cuenta, se genera una contraseña temporal, se guarda
+ * (marcada para cambio obligatorio) y se envía por correo. La respuesta es
+ * genérica para no revelar qué correos están registrados.
  *
- * @param {express.Request} req - `req.body` con { email, numero_id, password }.
+ * @param {express.Request} req - `req.body` con { email }.
  * @param {express.Response} res - Respuesta JSON.
  * @param {express.NextFunction} next - Pasa errores al middleware de errores.
  */
 async function recover(req, res, next) {
   try {
-    const { numero_id, password } = req.body;
     const email = normalizarEmail(req.body.email);
 
-    if (!email || !numero_id || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Correo, número de identificación y nueva contraseña son requeridos",
-      });
+    if (!email || !EMAIL_REGEX.test(email)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Ingresa un correo válido" });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({
+    if (!correoHabilitado) {
+      return res.status(503).json({
         success: false,
-        message: "La contraseña debe tener al menos 6 caracteres",
+        message: "El servicio de correo no está disponible en este momento",
       });
     }
 
     const user = await usuariosRepo.buscarPorEmail(email);
 
-    // Mensaje genérico: no revelar si el correo existe o cuál dato falló.
-    if (!user || !user.numero_id || user.numero_id !== String(numero_id)) {
-      return res.status(400).json({
+    // Mensaje genérico común: no revela si la cuenta existe (anti enumeración).
+    const respuestaGenerica = {
+      success: true,
+      message:
+        "Si existe una cuenta con ese correo, te enviamos una contraseña temporal.",
+    };
+
+    if (!user) {
+      return res.json(respuestaGenerica);
+    }
+
+    const temporal = generarPasswordTemporal();
+
+    // Se envía el correo ANTES de cambiar la contraseña: si el envío falla,
+    // no se modifica nada y el usuario no queda bloqueado con una temporal
+    // que nunca recibió.
+    const enviado = await enviarCorreo({
+      to: email,
+      subject: "Restablecimiento de contraseña · SaludYa",
+      text:
+        `Hola ${user.nombre || ""},\n\n` +
+        `Solicitaste restablecer tu contraseña en SaludYa.\n` +
+        `Tu contraseña temporal es: ${temporal}\n\n` +
+        `Inicia sesión con ella; el sistema te pedirá definir una nueva ` +
+        `contraseña en tu primer ingreso.`,
+    });
+
+    if (!enviado) {
+      logger.error({ email }, "No se pudo enviar el correo de restablecimiento");
+      return res.status(502).json({
         success: false,
-        message: "Los datos no coinciden con ninguna cuenta",
+        message: "No se pudo enviar el correo. Intenta de nuevo más tarde.",
       });
     }
 
-    await usuariosRepo.actualizarPassword(user.id, hashPassword(password));
+    await usuariosRepo.actualizarPorId(user.id, {
+      password: hashPassword(temporal),
+      debe_cambiar_password: true,
+    });
 
-    res.json({ success: true, message: "Contraseña actualizada" });
+    res.json(respuestaGenerica);
   } catch (error) {
     next(error);
   }

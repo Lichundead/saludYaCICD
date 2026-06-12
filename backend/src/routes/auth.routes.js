@@ -22,7 +22,7 @@ router.post("/login", login);
 /** Registra un nuevo paciente (el rol nunca se acepta del cliente). */
 router.post("/register", register);
 
-/** Restablece la contraseña verificando correo + número de identificación. */
+/** Restablece la contraseña enviando una temporal al correo de la cuenta. */
 router.post("/recover", recover);
 
 /** Cambia la contraseña del usuario autenticado (requiere token). */
